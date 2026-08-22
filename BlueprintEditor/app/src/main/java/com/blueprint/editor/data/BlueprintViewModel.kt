@@ -71,7 +71,7 @@ class BlueprintViewModel : ViewModel() {
 
     // ---- Tool selection ----
 
-    fun setDrawMode(mode: DrawMode) {
+    fun selectDrawMode(mode: DrawMode) {
         // Switching tools mid-placement cancels the pending line/box, same as
         // the web version implicitly does (a new mode never resumed old
         // pending state — pendingLineStart/pendingBoxStart were mode-specific).

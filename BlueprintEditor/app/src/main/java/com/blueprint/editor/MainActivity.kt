@@ -363,10 +363,10 @@ private fun EditorTopBar(
 @Composable
 private fun ToolBar(viewModel: BlueprintViewModel) {
     NavigationBar {
-        ToolBarItem(Icons.Filled.RadioButtonChecked, "Dot", viewModel.drawMode == DrawMode.DOT) { viewModel.setDrawMode(DrawMode.DOT) }
-        ToolBarItem(Icons.AutoMirrored.Filled.TrendingFlat, "Line", viewModel.drawMode == DrawMode.LINE) { viewModel.setDrawMode(DrawMode.LINE) }
-        ToolBarItem(Icons.Filled.CropSquare, "Box", viewModel.drawMode == DrawMode.BOX) { viewModel.setDrawMode(DrawMode.BOX) }
-        ToolBarItem(Icons.Filled.PanTool, "Pan", viewModel.drawMode == DrawMode.PAN) { viewModel.setDrawMode(DrawMode.PAN) }
+        ToolBarItem(Icons.Filled.RadioButtonChecked, "Dot", viewModel.drawMode == DrawMode.DOT) { viewModel.selectDrawMode(DrawMode.DOT) }
+        ToolBarItem(Icons.AutoMirrored.Filled.TrendingFlat, "Line", viewModel.drawMode == DrawMode.LINE) { viewModel.selectDrawMode(DrawMode.LINE) }
+        ToolBarItem(Icons.Filled.CropSquare, "Box", viewModel.drawMode == DrawMode.BOX) { viewModel.selectDrawMode(DrawMode.BOX) }
+        ToolBarItem(Icons.Filled.PanTool, "Pan", viewModel.drawMode == DrawMode.PAN) { viewModel.selectDrawMode(DrawMode.PAN) }
     }
 }
 
