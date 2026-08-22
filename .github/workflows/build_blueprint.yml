@@ -8,6 +8,9 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: BlueprintEditor
     steps:
       - uses: actions/checkout@v4
 
@@ -33,4 +36,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: blueprint-editor-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: BlueprintEditor/app/build/outputs/apk/debug/app-debug.apk
