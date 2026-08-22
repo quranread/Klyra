@@ -300,10 +300,10 @@ private fun EditorTopBar(
         },
         actions = {
             IconButton(onClick = { viewModel.undo() }, enabled = viewModel.canUndo) {
-                Icon(Undo, contentDescription = "Undo")
+                Icon(Icons.AutoMirrored.Filled.Undo, contentDescription = "Undo")
             }
             IconButton(onClick = { viewModel.redo() }, enabled = viewModel.canRedo) {
-                Icon(Redo, contentDescription = "Redo")
+                Icon(Icons.AutoMirrored.Filled.Redo, contentDescription = "Redo")
             }
             if (viewModel.hasElements) {
                 BadgedBox(badge = { Badge { Text(viewModel.elements.size.toString()) } }) {
@@ -363,7 +363,7 @@ private fun EditorTopBar(
 private fun ToolBar(viewModel: BlueprintViewModel) {
     NavigationBar {
         ToolBarItem(Icons.Filled.RadioButtonChecked, "Dot", viewModel.drawMode == DrawMode.DOT) { viewModel.setDrawMode(DrawMode.DOT) }
-        ToolBarItem(TrendingFlat, "Line", viewModel.drawMode == DrawMode.LINE) { viewModel.setDrawMode(DrawMode.LINE) }
+        ToolBarItem(Icons.AutoMirrored.Filled.TrendingFlat, "Line", viewModel.drawMode == DrawMode.LINE) { viewModel.setDrawMode(DrawMode.LINE) }
         ToolBarItem(Icons.Filled.CropSquare, "Box", viewModel.drawMode == DrawMode.BOX) { viewModel.setDrawMode(DrawMode.BOX) }
         ToolBarItem(Icons.Filled.PanTool, "Pan", viewModel.drawMode == DrawMode.PAN) { viewModel.setDrawMode(DrawMode.PAN) }
     }
