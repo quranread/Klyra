@@ -275,6 +275,7 @@ private fun EditorScreen(viewModel: BlueprintViewModel) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun EditorTopBar(
     viewModel: BlueprintViewModel,
