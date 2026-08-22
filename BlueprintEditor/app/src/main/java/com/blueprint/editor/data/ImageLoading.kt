@@ -25,9 +25,8 @@ fun loadImageFromUri(context: Context, uri: Uri): LoadedImage? {
     val resolver = context.contentResolver
 
     val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-    resolver.openInputStream(uri)?.use { stream ->
-        BitmapFactory.decodeStream(stream, null, bounds)
-    } ?: return null
+    val boundsStream = resolver.openInputStream(uri) ?: return null
+    boundsStream.use { stream -> BitmapFactory.decodeStream(stream, null, bounds) }
     if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
 
     val bitmap = resolver.openInputStream(uri)?.use { stream ->
