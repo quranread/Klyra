@@ -28,6 +28,20 @@ class BlueprintGestureCallbacks(
     val onDeleteSelected: () -> Unit
 )
 
+/**
+ * Resolves a touch position to a natural-image coordinate, snapping to an
+ * existing dot/line-endpoint when the active tool is Line — see
+ * [findSnapNaturalPoint]. Kept as a shared helper so the down-event and
+ * move-event code paths below can never disagree about where a point landed.
+ */
+private fun resolveNaturalPoint(local: Offset, callbacks: BlueprintGestureCallbacks): NaturalPoint {
+    val (nx, ny) = callbacks.transform.toNatural(local.x, local.y)
+    val raw = NaturalPoint(nx.roundToInt(), ny.roundToInt())
+    if (callbacks.drawMode() != DrawMode.LINE) return raw
+    val pan = Offset(callbacks.transform.panX, callbacks.transform.panY)
+    return findSnapNaturalPoint(local, callbacks.frame(), pan) ?: raw
+}
+
 suspend fun PointerInputScope.detectBlueprintCanvasGestures(callbacks: BlueprintGestureCallbacks) {
     awaitEachGesture {
         val activePointers = linkedMapOf<PointerId, Offset>()
@@ -67,8 +81,7 @@ suspend fun PointerInputScope.detectBlueprintCanvasGestures(callbacks: Blueprint
                                     panStartPan = Offset(callbacks.transform.panX, callbacks.transform.panY)
                                 } else {
                                     placingPointerId = change.id
-                                    val (nx, ny) = callbacks.transform.toNatural(local.x, local.y)
-                                    val natural = NaturalPoint(nx.roundToInt(), ny.roundToInt())
+                                    val natural = resolveNaturalPoint(local, callbacks)
                                     lastPlacingNatural = natural
                                     callbacks.onPlaceMove(local, natural, change.type == PointerType.Touch)
                                 }
@@ -116,8 +129,7 @@ suspend fun PointerInputScope.detectBlueprintCanvasGestures(callbacks: Blueprint
                 }
                 placingPointerId != null && activePointers.containsKey(placingPointerId) -> {
                     val cur = activePointers.getValue(placingPointerId!!)
-                    val (nx, ny) = callbacks.transform.toNatural(cur.x, cur.y)
-                    val natural = NaturalPoint(nx.roundToInt(), ny.roundToInt())
+                    val natural = resolveNaturalPoint(cur, callbacks)
                     lastPlacingNatural = natural
                     val changeType = event.changes.firstOrNull { it.id == placingPointerId }?.type
                     callbacks.onPlaceMove(cur, natural, changeType == PointerType.Touch)

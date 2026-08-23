@@ -22,6 +22,7 @@ import kotlin.math.roundToInt
 private val AMBER = Color(0xFFFFB627)
 private val CYAN = Color(0xFF4FD1C5)
 private val DEEP = Color(0xFF0A1F33)
+private val SNAP_GREEN = Color(0xFF4ADE80)
 
 /**
  * Everything needed to paint the current frame of the canvas overlay —
@@ -79,6 +80,20 @@ fun DrawScope.drawAnnotations(frame: AnnotationFrame, textMeasurer: TextMeasurer
         }
         frame.pendingBoxStart?.let { start ->
             drawPreviewBox(Offset(start.x * s, start.y * s), Offset(live.x * s, live.y * s))
+        }
+        // "Hub/spoke" snap feedback: if the live point exactly matches an
+        // existing dot/line-endpoint (see findSnapNaturalPoint — it returns
+        // that exact coordinate, never a nearby-but-different one), ring it
+        // in green so the user can see, before lifting their finger, that
+        // this new line segment will share that precise vertex.
+        val isSnapped = frame.elements.any { el ->
+            when (el) {
+                is BlueprintElement.Dot -> el.x == live.x && el.y == live.y
+                is BlueprintElement.Line -> (el.x1 == live.x && el.y1 == live.y) || (el.x2 == live.x && el.y2 == live.y)
+            }
+        }
+        if (isSnapped) {
+            drawCircle(SNAP_GREEN, radius = 14f, center = Offset(live.x * s, live.y * s), style = Stroke(width = 3f))
         }
     }
 
