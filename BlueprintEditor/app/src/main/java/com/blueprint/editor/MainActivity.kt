@@ -81,7 +81,10 @@ private fun EditorScreen(viewModel: BlueprintViewModel) {
         val loaded = loadImageFromUri(context, uri) ?: return
         bitmap = loaded.bitmap
         viewModel.loadImage(loaded.uri.toString(), loaded.filename, loaded.width, loaded.height)
-        transform.fitToContainer(canvasSize.width, canvasSize.height, loaded.width, loaded.height)
+        // Don't fit here — canvasSize may be stale (zero on first launch, or
+        // left over from a previous image) since it's only updated from
+        // BlueprintCanvas's own onContainerSizeChanged below. The real fit
+        // happens once that callback reports a settled container size.
     }
 
     val pickImage = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
@@ -151,9 +154,14 @@ private fun EditorScreen(viewModel: BlueprintViewModel) {
             if (currentBitmap == null) {
                 EmptyState(onPickImage = { pickImage.launch("image/*") })
             } else {
-                // Fit-to-container once, right after a fresh image loads — mirrors
-                // the original calling setZoom('fit') immediately after loadImage().
+                // Fit-to-container right after a fresh image loads — mirrors the
+                // original calling setZoom('fit') immediately after loadImage().
+                // With edge-to-edge enabled, the box's first reported size can
+                // land before window insets finish settling, so we keep re-fitting
+                // on every size change and only lock once two consecutive
+                // measurements agree — that's what "settled" means here.
                 var hasFit by remember(currentBitmap) { mutableStateOf(false) }
+                var lastMeasuredSize by remember(currentBitmap) { mutableStateOf<IntSize?>(null) }
 
                 BlueprintCanvas(
                     viewModel = viewModel,
@@ -164,12 +172,18 @@ private fun EditorScreen(viewModel: BlueprintViewModel) {
                         .then(
                             if (!hasFit) {
                                 Modifier.onSizeChanged { size: IntSize ->
-                                    if (viewModel.naturalW > 0 && viewModel.naturalH > 0) {
-                                        transform.fitToContainer(
-                                            size.width.toFloat(), size.height.toFloat(),
-                                            viewModel.naturalW, viewModel.naturalH
-                                        )
-                                        hasFit = true
+                                    if (viewModel.naturalW > 0 && viewModel.naturalH > 0 &&
+                                        size.width > 0 && size.height > 0
+                                    ) {
+                                        if (size == lastMeasuredSize) {
+                                            hasFit = true
+                                        } else {
+                                            lastMeasuredSize = size
+                                            transform.fitToContainer(
+                                                size.width.toFloat(), size.height.toFloat(),
+                                                viewModel.naturalW, viewModel.naturalH
+                                            )
+                                        }
                                     }
                                 }
                             } else Modifier
@@ -180,7 +194,7 @@ private fun EditorScreen(viewModel: BlueprintViewModel) {
                 ZoomControls(
                     transform = transform,
                     containerSize = canvasSize,
-                    onFit = { hasFit = false },
+                    onFit = { hasFit = false; lastMeasuredSize = null },
                     modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp)
                 )
             }
