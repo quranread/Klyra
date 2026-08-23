@@ -69,6 +69,46 @@ class BlueprintViewModel : ViewModel() {
         drawMode = DrawMode.DOT
     }
 
+    /**
+     * Applies a crop: the visible image itself has already been re-decoded to
+     * [newW]x[newH] by the caller (the actual pixel crop happens in
+     * [cropBitmap]) — this just re-anchors every existing element to the new,
+     * smaller coordinate space by subtracting the crop's top-left offset, and
+     * drops anything that fell entirely outside the new bounds (with a small
+     * margin so a box that's only partly clipped is kept, not deleted).
+     * Unlike [loadImage], this does NOT clear elements or reset undo/redo —
+     * cropping refines an in-progress mapping session rather than starting a
+     * new one.
+     */
+    fun applyCrop(cropLeft: Int, cropTop: Int, newW: Int, newH: Int) {
+        val margin = 40
+        val kept = elements.mapNotNull { el ->
+            when (el) {
+                is BlueprintElement.Dot -> {
+                    val nx = el.x - cropLeft
+                    val ny = el.y - cropTop
+                    if (nx < -margin || ny < -margin || nx > newW + margin || ny > newH + margin) null
+                    else el.copy(x = nx, y = ny)
+                }
+                is BlueprintElement.Line -> {
+                    val nx1 = el.x1 - cropLeft; val ny1 = el.y1 - cropTop
+                    val nx2 = el.x2 - cropLeft; val ny2 = el.y2 - cropTop
+                    val bothOutside = (nx1 < -margin || nx1 > newW + margin || ny1 < -margin || ny1 > newH + margin) &&
+                        (nx2 < -margin || nx2 > newW + margin || ny2 < -margin || ny2 > newH + margin)
+                    if (bothOutside) null else el.copy(x1 = nx1, y1 = ny1, x2 = nx2, y2 = ny2)
+                }
+            }
+        }
+        elements.clear()
+        elements.addAll(kept)
+        redoStack.clear()
+        naturalW = newW
+        naturalH = newH
+        selectedId = null
+        pendingLineStart = null
+        pendingBoxStart = null
+    }
+
     // ---- Tool selection ----
 
     fun selectDrawMode(mode: DrawMode) {

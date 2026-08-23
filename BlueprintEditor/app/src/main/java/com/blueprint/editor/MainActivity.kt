@@ -22,6 +22,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -29,12 +31,14 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import com.blueprint.editor.data.BlueprintViewModel
 import com.blueprint.editor.data.DrawMode
+import com.blueprint.editor.data.cropBitmap
 import com.blueprint.editor.data.loadImageFromUri
 import com.blueprint.editor.export.buildAiInstructions
 import com.blueprint.editor.export.buildAnnotatedBitmap
 import com.blueprint.editor.export.buildBlueprintJson
 import com.blueprint.editor.ui.canvas.BlueprintCanvas
 import com.blueprint.editor.ui.canvas.CanvasTransformState
+import com.blueprint.editor.ui.crop.CropScreen
 import com.blueprint.editor.ui.components.AiInstructionsSheet
 import com.blueprint.editor.ui.components.EditSheet
 import com.blueprint.editor.ui.components.ElementsListSheet
@@ -74,6 +78,7 @@ private fun EditorScreen(viewModel: BlueprintViewModel) {
     var showImageInfo by remember { mutableStateOf(false) }
     var showClearConfirm by remember { mutableStateOf(false) }
     var pendingImageUri by remember { mutableStateOf<Uri?>(null) } // awaiting wipe-confirmation
+    var showCrop by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val jsonFormat = remember { Json { prettyPrint = true } }
 
@@ -136,7 +141,8 @@ private fun EditorScreen(viewModel: BlueprintViewModel) {
                 onOpenImageInfo = { showImageInfo = true },
                 onExportJson = { exportJsonLauncher.launch("${baseName()}_blueprint.json") },
                 onExportPng = { exportPngLauncher.launch("${baseName()}_annotated.png") },
-                onClearAll = { showClearConfirm = true }
+                onClearAll = { showClearConfirm = true },
+                onCrop = { showCrop = true }
             )
         },
         bottomBar = { if (bitmap != null) ToolBar(viewModel) }
@@ -287,6 +293,28 @@ private fun EditorScreen(viewModel: BlueprintViewModel) {
             }
         )
     }
+
+    // Full-screen crop tool. Rendered as a top-level overlay (not a dialog/
+    // sheet) since it needs the whole screen for comfortable dragging —
+    // matches how the Dot/Line/Box tools get the full canvas.
+    if (showCrop) {
+        val currentBitmap = bitmap
+        if (currentBitmap != null) {
+            CropScreen(
+                bitmap = currentBitmap,
+                naturalW = viewModel.naturalW,
+                naturalH = viewModel.naturalH,
+                onCancel = { showCrop = false },
+                onApply = { left, top, width, height ->
+                    val androidBitmap = currentBitmap.asAndroidBitmap()
+                    val cropped = cropBitmap(androidBitmap, left, top, width, height)
+                    bitmap = cropped.asImageBitmap()
+                    viewModel.applyCrop(left, top, cropped.width, cropped.height)
+                    showCrop = false
+                }
+            )
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -300,7 +328,8 @@ private fun EditorTopBar(
     onOpenImageInfo: () -> Unit,
     onExportJson: () -> Unit,
     onExportPng: () -> Unit,
-    onClearAll: () -> Unit
+    onClearAll: () -> Unit,
+    onCrop: () -> Unit
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
 
@@ -366,6 +395,11 @@ private fun EditorTopBar(
                         onClick = { menuExpanded = false; onOpenImageInfo() }
                     )
                     HorizontalDivider()
+                    DropdownMenuItem(
+                        text = { Text("Crop Image") },
+                        leadingIcon = { Icon(Icons.Filled.Crop, contentDescription = null) },
+                        onClick = { menuExpanded = false; onCrop() }
+                    )
                     DropdownMenuItem(
                         text = { Text("Clear All") },
                         leadingIcon = { Icon(Icons.Filled.DeleteSweep, contentDescription = null) },
