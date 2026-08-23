@@ -201,7 +201,7 @@ fun CropScreen(
     }
 }
 
-private suspend fun PointerInputScope.detectCropGestures(
+internal suspend fun PointerInputScope.detectCropGestures(
     state: CropRectState,
     fitScale: Float,
     originX: Float,
