@@ -5,11 +5,19 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.GpsFixed
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -203,15 +211,20 @@ private fun NudgePad(step: Int, onStepChange: (Int) -> Unit, onNudge: (dx: Int, 
                 }
             }
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                NudgeButton("↑") { onNudge(0, -step) }
+                NudgeButton(Icons.Filled.KeyboardArrowUp, "Nudge up") { onNudge(0, -step) }
                 Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                    NudgeButton("←") { onNudge(-step, 0) }
+                    NudgeButton(Icons.Filled.KeyboardArrowLeft, "Nudge left") { onNudge(-step, 0) }
                     Box(modifier = Modifier.size(40.dp), contentAlignment = Alignment.Center) {
-                        Text("✛", color = TextMuted, style = MaterialTheme.typography.bodyMedium)
+                        Icon(
+                            Icons.Filled.GpsFixed,
+                            contentDescription = null,
+                            tint = TextMuted,
+                            modifier = Modifier.size(18.dp)
+                        )
                     }
-                    NudgeButton("→") { onNudge(step, 0) }
+                    NudgeButton(Icons.Filled.KeyboardArrowRight, "Nudge right") { onNudge(step, 0) }
                 }
-                NudgeButton("↓") { onNudge(0, step) }
+                NudgeButton(Icons.Filled.KeyboardArrowDown, "Nudge down") { onNudge(0, step) }
             }
         }
     }
@@ -232,17 +245,17 @@ private fun StepChip(label: String, selected: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-private fun NudgeButton(symbol: String, onClick: () -> Unit) {
+private fun NudgeButton(icon: ImageVector, contentDescription: String, onClick: () -> Unit) {
     OutlinedButton(
         onClick = onClick,
         contentPadding = PaddingValues(0.dp),
         modifier = Modifier.size(40.dp)
     ) {
-        Text(symbol, color = Cyan, style = MaterialTheme.typography.titleMedium)
+        Icon(icon, contentDescription = contentDescription, tint = Cyan)
     }
 }
 
-/** A numeric text field with −/+ stepper buttons on either side, stepping by [step]. */
+/** A numeric text field with -/+ (icon) stepper buttons on either side, stepping by [step]. */
 @Composable
 private fun SteppedNumberField(
     label: String,
@@ -256,7 +269,7 @@ private fun SteppedNumberField(
         Text(label, color = TextMuted, style = MaterialTheme.typography.labelSmall)
         Row(verticalAlignment = Alignment.CenterVertically) {
             OutlinedButton(onClick = { onStep(-step) }, contentPadding = PaddingValues(0.dp), modifier = Modifier.size(40.dp)) {
-                Text("−", style = MaterialTheme.typography.titleMedium)
+                Icon(Icons.Filled.Remove, contentDescription = "Decrease")
             }
             OutlinedTextField(
                 value = valueText,
@@ -266,7 +279,7 @@ private fun SteppedNumberField(
                 modifier = Modifier.weight(1f)
             )
             OutlinedButton(onClick = { onStep(step) }, contentPadding = PaddingValues(0.dp), modifier = Modifier.size(40.dp)) {
-                Text("+", style = MaterialTheme.typography.titleMedium)
+                Icon(Icons.Filled.Add, contentDescription = "Increase")
             }
         }
     }

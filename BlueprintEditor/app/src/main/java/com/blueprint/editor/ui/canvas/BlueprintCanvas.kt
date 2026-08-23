@@ -5,7 +5,6 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -17,18 +16,17 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.painter.BitmapPainter
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.draw.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.rememberTextMeasurer
-import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.unit.dp
 import com.blueprint.editor.data.BlueprintViewModel
 import com.blueprint.editor.data.NaturalPoint
 import com.blueprint.editor.ui.theme.BgDeep
-import kotlin.math.roundToInt
 
 /**
  * The scrollable/zoomable image canvas: image + all dot/line/box annotations
@@ -114,19 +112,30 @@ fun BlueprintCanvas(
     ) {
         if (viewModel.naturalW > 0) {
             val density = LocalDensity.current
-            val contentWPx = viewModel.naturalW * transform.scale
-            val contentHPx = viewModel.naturalH * transform.scale
-            val contentWDp = with(density) { contentWPx.toDp() }
-            val contentHDp = with(density) { contentHPx.toDp() }
+            // Fixed natural-resolution size, converted to Dp ONCE (not re-derived
+            // from scale every recomposition) — pan+zoom are then applied purely
+            // in raw pixels via graphicsLayer below, so there's no dp<->px
+            // round-trip drift compounding as the user zooms in/out.
+            val naturalWDp = with(density) { viewModel.naturalW.toDp() }
+            val naturalHDp = with(density) { viewModel.naturalH.toDp() }
 
-            // Image, panned+scaled via offset/size (equivalent to canvasInner's CSS transform).
+            // Image, panned+scaled via graphicsLayer (equivalent to canvasInner's
+            // CSS `transform: translate()` + explicit pixel width/height, but
+            // expressed as a single scale+translate from the top-left origin so
+            // it matches transform.toNatural()/toScreen() exactly.
             Image(
                 painter = remember(bitmap) { BitmapPainter(bitmap) },
                 contentDescription = null,
                 contentScale = ContentScale.FillBounds,
                 modifier = Modifier
-                    .offset { IntOffset(transform.panX.roundToInt(), transform.panY.roundToInt()) }
-                    .size(width = contentWDp, height = contentHDp)
+                    .size(width = naturalWDp, height = naturalHDp)
+                    .graphicsLayer {
+                        scaleX = transform.scale
+                        scaleY = transform.scale
+                        transformOrigin = TransformOrigin(0f, 0f)
+                        translationX = transform.panX
+                        translationY = transform.panY
+                    }
             )
 
             // Annotation overlay drawn directly in the wrap's own (unscaled)

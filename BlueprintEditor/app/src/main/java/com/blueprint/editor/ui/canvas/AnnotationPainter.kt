@@ -170,16 +170,16 @@ private fun DrawScope.drawDimensionLines(el: BlueprintElement.Dot, frame: Annota
     val dimColor = CYAN.copy(alpha = 0.55f)
     // left
     drawLine(dimColor, Offset(0f, midY), Offset(bx1, midY), strokeWidth = 1f)
-    drawChipLabel("← left ${box.left}px", Offset(max(4f, bx1 / 2f - 30f), midY - 18f), textMeasurer, filled = false)
+    drawChipLabel("<- left ${box.left}px", Offset(max(4f, bx1 / 2f - 30f), midY - 18f), textMeasurer, filled = false)
     // right
     drawLine(dimColor, Offset(bx2, midY), Offset(canvasW, midY), strokeWidth = 1f)
-    drawChipLabel("right ${box.right}px →", Offset(bx2 + (canvasW - bx2) / 2f - 34f, midY - 18f), textMeasurer, filled = false)
+    drawChipLabel("right ${box.right}px ->", Offset(bx2 + (canvasW - bx2) / 2f - 34f, midY - 18f), textMeasurer, filled = false)
     // top
     drawLine(dimColor, Offset(midX, 0f), Offset(midX, by1), strokeWidth = 1f)
-    drawChipLabel("↑ top ${box.top}px", Offset(midX + 6f, max(2f, by1 / 2f - 8f)), textMeasurer, filled = false)
+    drawChipLabel("^ top ${box.top}px", Offset(midX + 6f, max(2f, by1 / 2f - 8f)), textMeasurer, filled = false)
     // bottom
     drawLine(dimColor, Offset(midX, by2), Offset(midX, canvasH), strokeWidth = 1f)
-    drawChipLabel("bottom ${box.bottom}px ↓", Offset(midX + 6f, by2 + (canvasH - by2) / 2f - 8f), textMeasurer, filled = false)
+    drawChipLabel("bottom ${box.bottom}px v", Offset(midX + 6f, by2 + (canvasH - by2) / 2f - 8f), textMeasurer, filled = false)
 }
 
 private fun DrawScope.drawChipLabel(

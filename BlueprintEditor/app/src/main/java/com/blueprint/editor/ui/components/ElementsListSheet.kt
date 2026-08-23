@@ -115,7 +115,7 @@ private fun ElementRow(
                 is BlueprintElement.Line -> {
                     Text("Line", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyMedium)
                     Text(
-                        "(${element.x1},${element.y1}) → (${element.x2},${element.y2})  len:${element.lengthPx()}px",
+                        "(${element.x1},${element.y1}) -> (${element.x2},${element.y2})  len:${element.lengthPx()}px",
                         color = TextMuted,
                         style = MaterialTheme.typography.labelSmall
                     )
