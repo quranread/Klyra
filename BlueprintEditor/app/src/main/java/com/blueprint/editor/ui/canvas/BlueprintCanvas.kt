@@ -1,11 +1,9 @@
 package com.blueprint.editor.ui.canvas
 
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -15,18 +13,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.painter.BitmapPainter
-import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.translate
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import com.blueprint.editor.data.BlueprintViewModel
 import com.blueprint.editor.data.NaturalPoint
 import com.blueprint.editor.ui.theme.BgDeep
+import kotlin.math.roundToInt
 
 /**
  * The scrollable/zoomable image canvas: image + all dot/line/box annotations
@@ -111,36 +107,30 @@ fun BlueprintCanvas(
             }
     ) {
         if (viewModel.naturalW > 0) {
-            val density = LocalDensity.current
-            // Fixed natural-resolution size, converted to Dp ONCE (not re-derived
-            // from scale every recomposition) — pan+zoom are then applied purely
-            // in raw pixels via graphicsLayer below, so there's no dp<->px
-            // round-trip drift compounding as the user zooms in/out.
-            val naturalWDp = with(density) { viewModel.naturalW.toDp() }
-            val naturalHDp = with(density) { viewModel.naturalH.toDp() }
-
-            // Image, panned+scaled via graphicsLayer (equivalent to canvasInner's
-            // CSS `transform: translate()` + explicit pixel width/height, but
-            // expressed as a single scale+translate from the top-left origin so
-            // it matches transform.toNatural()/toScreen() exactly.
-            Image(
-                painter = remember(bitmap) { BitmapPainter(bitmap) },
-                contentDescription = null,
-                contentScale = ContentScale.FillBounds,
-                modifier = Modifier
-                    .size(width = naturalWDp, height = naturalHDp)
-                    .graphicsLayer {
-                        scaleX = transform.scale
-                        scaleY = transform.scale
-                        transformOrigin = TransformOrigin(0f, 0f)
-                        translationX = transform.panX
-                        translationY = transform.panY
-                    }
-            )
-
-            // Annotation overlay drawn directly in the wrap's own (unscaled)
-            // coordinate space at natural*scale+pan, so it never needs its own transform.
+            // Image + annotations both drawn in the SAME Canvas, in raw pixels,
+            // with zero dp<->px conversion anywhere in this path. This is
+            // deliberate: an earlier version sized the Image composable via
+            // `.size(naturalWDp, naturalHDp)` + `graphicsLayer { scaleX = ... }`,
+            // which round-trips through Dp (px -> dp -> px again via density)
+            // for the base layout size before the visual scale is even applied.
+            // On some devices that round-trip doesn't cancel out cleanly, so the
+            // bitmap visually renders far smaller than `transform.scale` implies
+            // — while pan/zoom math (all pure px) still thinks it's the full
+            // size. That mismatch is exactly what shows up as "empty" canvas
+            // area that still responds to taps/magnifier with real image data.
+            // Drawing the bitmap with Canvas.drawImage(dstOffset/dstSize in px)
+            // guarantees the on-screen pixel size always equals
+            // naturalW*scale/naturalH*scale exactly — the same px space
+            // pointerInput, CanvasTransformState, and the annotation overlay
+            // already use, so there is no second unit system left to drift.
             Canvas(modifier = Modifier.fillMaxSize()) {
+                val dstW = (viewModel.naturalW * transform.scale).roundToInt().coerceAtLeast(1)
+                val dstH = (viewModel.naturalH * transform.scale).roundToInt().coerceAtLeast(1)
+                drawImage(
+                    image = bitmap,
+                    dstOffset = IntOffset(transform.panX.roundToInt(), transform.panY.roundToInt()),
+                    dstSize = IntSize(dstW, dstH)
+                )
                 translate(transform.panX, transform.panY) {
                     drawAnnotations(frame, textMeasurer)
                 }
