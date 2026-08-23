@@ -30,7 +30,7 @@ fun ImageInfoSheet(
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
 
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, containerColor = com.blueprint.editor.ui.theme.BgPanel2) {
         Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 20.dp)) {
             Text("Image Info", style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(12.dp))

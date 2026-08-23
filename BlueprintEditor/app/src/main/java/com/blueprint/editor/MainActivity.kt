@@ -299,6 +299,10 @@ private fun EditorTopBar(
                 }
             }
         },
+        colors = TopAppBarDefaults.topAppBarColors(
+            containerColor = com.blueprint.editor.ui.theme.BgPanel,
+            titleContentColor = com.blueprint.editor.ui.theme.TextPrimary
+        ),
         actions = {
             IconButton(onClick = { viewModel.undo() }, enabled = viewModel.canUndo) {
                 Icon(Icons.AutoMirrored.Filled.Undo, contentDescription = "Undo")
@@ -362,7 +366,7 @@ private fun EditorTopBar(
 
 @Composable
 private fun ToolBar(viewModel: BlueprintViewModel) {
-    NavigationBar {
+    NavigationBar(containerColor = com.blueprint.editor.ui.theme.BgPanel3) {
         ToolBarItem(Icons.Filled.RadioButtonChecked, "Dot", viewModel.drawMode == DrawMode.DOT) { viewModel.selectDrawMode(DrawMode.DOT) }
         ToolBarItem(Icons.AutoMirrored.Filled.TrendingFlat, "Line", viewModel.drawMode == DrawMode.LINE) { viewModel.selectDrawMode(DrawMode.LINE) }
         ToolBarItem(Icons.Filled.CropSquare, "Box", viewModel.drawMode == DrawMode.BOX) { viewModel.selectDrawMode(DrawMode.BOX) }
@@ -406,10 +410,33 @@ private fun ZoomControls(transform: CanvasTransformState, containerSize: android
 @Composable
 private fun EmptyState(onPickImage: () -> Unit) {
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Icon(Icons.Filled.Image, contentDescription = null, tint = TextMuted, modifier = Modifier.size(36.dp))
-            Text("Upload a screenshot to start mapping", style = MaterialTheme.typography.titleMedium)
-            Button(onClick = onPickImage) { Text("Choose Image") }
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+            modifier = Modifier.padding(horizontal = 36.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(64.dp)
+                    .background(Amber.copy(alpha = 0.12f), shape = MaterialTheme.shapes.large),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Filled.GridOn, contentDescription = null, tint = Amber, modifier = Modifier.size(32.dp))
+            }
+            Text(
+                "Upload a screenshot to begin mapping",
+                style = MaterialTheme.typography.titleLarge,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
+            Text(
+                "Original resolution locks the moment it's uploaded. Every coordinate you record stays anchored to those original pixels — zoom never changes it.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = TextMuted,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
+            Button(onClick = onPickImage, modifier = Modifier.padding(top = 6.dp)) {
+                Text("\u2B06  Upload Image")
+            }
         }
     }
 }

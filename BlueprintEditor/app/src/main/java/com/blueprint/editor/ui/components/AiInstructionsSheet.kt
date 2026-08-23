@@ -46,7 +46,7 @@ fun AiInstructionsSheet(text: String, onDismiss: () -> Unit) {
     val context = LocalContext.current
     var justCopied by remember { mutableStateOf(false) }
 
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, containerColor = com.blueprint.editor.ui.theme.BgPanel2) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()

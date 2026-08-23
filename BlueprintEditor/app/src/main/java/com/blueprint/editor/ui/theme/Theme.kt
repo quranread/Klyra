@@ -24,6 +24,7 @@ fun BlueprintEditorTheme(content: @Composable () -> Unit) {
     MaterialTheme(
         colorScheme = BlueprintDarkScheme,
         typography = AppTypography,
+        shapes = AppShapes,
         content = content
     )
 }

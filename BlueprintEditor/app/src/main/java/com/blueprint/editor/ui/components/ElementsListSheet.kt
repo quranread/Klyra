@@ -38,7 +38,7 @@ fun ElementsListSheet(
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
 
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, containerColor = com.blueprint.editor.ui.theme.BgPanel2) {
         Column(modifier = Modifier.fillMaxWidth().heightIn(max = 480.dp)) {
             Text(
                 text = "Mapped elements" + if (elements.isNotEmpty()) " (${elements.size})" else "",

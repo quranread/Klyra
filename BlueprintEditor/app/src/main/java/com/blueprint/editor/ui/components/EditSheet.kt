@@ -46,7 +46,8 @@ fun EditSheet(
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        sheetState = sheetState
+        sheetState = sheetState,
+        containerColor = com.blueprint.editor.ui.theme.BgPanel2
     ) {
         Column(
             modifier = Modifier
