@@ -451,6 +451,12 @@ private fun EmptyState(onPickImage: () -> Unit) {
             Button(onClick = onPickImage, modifier = Modifier.padding(top = 6.dp)) {
                 Text("\u2B06  Upload Image")
             }
+            Text(
+                "v1.1",
+                style = MaterialTheme.typography.labelSmall,
+                color = TextMuted,
+                modifier = Modifier.padding(top = 10.dp)
+            )
         }
     }
 }
