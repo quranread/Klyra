@@ -135,8 +135,17 @@ class BlueprintViewModel : ViewModel() {
         val id = genId("dot")
         elements.add(
             BlueprintElement.Dot(
-                id = id, x = x1, y = y1, width = w, height = h,
-                type = ElementType.Default, anchor = Anchor.TOP_LEFT
+                // Anchor at the box's exact center rather than its top-left
+                // corner: the whole point of tapping two corners is usually to
+                // find the true middle of a circular/symmetric element (a
+                // button, icon, avatar), so the id marker + label should sit
+                // exactly on top of the center crosshair, not off at a corner
+                // while the crosshair sits elsewhere. Anchor.CENTER makes
+                // boxMetrics() reconstruct the same x1/y1/x2/y2 box from this
+                // center point, so nothing about the box's size/edges changes —
+                // only where the marker itself is drawn.
+                id = id, x = x1 + w / 2, y = y1 + h / 2, width = w, height = h,
+                type = ElementType.Default, anchor = Anchor.CENTER
             )
         )
         redoStack.clear()

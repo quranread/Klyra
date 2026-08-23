@@ -134,6 +134,23 @@ fun BlueprintCanvas(
                 translate(transform.panX, transform.panY) {
                     drawAnnotations(frame, textMeasurer)
                 }
+
+                // Full-canvas alignment guides through the line tool's first
+                // point, drawn in the OUTER (untranslated) coordinate space so
+                // they always span edge-to-edge regardless of pan/zoom. Fixes
+                // exactly the reported issue: placing point 1, then panning/
+                // zooming far away to place point 2 precisely (e.g. to keep a
+                // vertical measurement line truly vertical) loses all visual
+                // reference to point 1's X position once it scrolls off-screen,
+                // so the second tap drifts a few px and the "vertical" line
+                // ends up slightly diagonal. These dashed guides keep that
+                // reference visible everywhere on screen, the same way design
+                // tools like Figma show alignment guides.
+                viewModel.pendingLineStart?.let { start ->
+                    val screenX = start.x * transform.scale + transform.panX
+                    val screenY = start.y * transform.scale + transform.panY
+                    drawGuideLines(screenX, screenY, this.size)
+                }
             }
 
             if (livePoint != null && isTouchPlacing && liveLocal != null) {

@@ -125,6 +125,21 @@ private fun DrawScope.drawPendingMarker(center: Offset) {
     drawCircle(CYAN, radius = 8f, center = center, style = Stroke(width = 2f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(4f, 3f))))
 }
 
+/**
+ * Thin dashed crosshair guides spanning the ENTIRE canvas through
+ * [screenX]/[screenY] — used while a line's second point hasn't been tapped
+ * yet, so its first point stays visually referenceable (for alignment) even
+ * after panning/zooming it off-screen. Must be called in the canvas's outer,
+ * untranslated coordinate space (i.e. not inside a `translate(panX, panY)`
+ * block), since the point is already given in screen coordinates.
+ */
+fun DrawScope.drawGuideLines(screenX: Float, screenY: Float, canvasSize: androidx.compose.ui.geometry.Size) {
+    val guideColor = AMBER.copy(alpha = 0.4f)
+    val dash = PathEffect.dashPathEffect(floatArrayOf(6f, 6f))
+    drawLine(guideColor, Offset(screenX, 0f), Offset(screenX, canvasSize.height), strokeWidth = 1.5f, pathEffect = dash)
+    drawLine(guideColor, Offset(0f, screenY), Offset(canvasSize.width, screenY), strokeWidth = 1.5f, pathEffect = dash)
+}
+
 private fun DrawScope.drawPreviewLine(p1: Offset, p2: Offset) {
     drawLine(CYAN, p1, p2, strokeWidth = 2f, cap = StrokeCap.Round, pathEffect = PathEffect.dashPathEffect(floatArrayOf(12f, 10f)))
 }
