@@ -17,17 +17,18 @@ data class LoadedImage(
 )
 
 /**
- * Reads dimensions + decodes a full bitmap for the given content [uri].
- * Mirrors `loadImage(src)`'s use of `tempImg.naturalWidth/Height` — done via
- * `inJustDecodeBounds` first so we never hold two full decodes in memory.
+ * Decodes the full bitmap for the given content [uri] and reads its dimensions
+ * directly off that same bitmap. A separate `inJustDecodeBounds` pre-check was
+ * removed on purpose: that pass and the real decode are two independent calls
+ * into the platform decoder, and on some devices/formats they don't agree on
+ * pixel dimensions (density-aware auto-scaling on the real decode is the usual
+ * cause) — sizing the canvas off `bounds.outWidth/outHeight` while drawing a
+ * bitmap that came out a different size is exactly what stretches the image.
+ * Reading width/height off the actual decoded [android.graphics.Bitmap]
+ * guarantees the two can never disagree.
  */
 fun loadImageFromUri(context: Context, uri: Uri): LoadedImage? {
     val resolver = context.contentResolver
-
-    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-    val boundsStream = resolver.openInputStream(uri) ?: return null
-    boundsStream.use { stream -> BitmapFactory.decodeStream(stream, null, bounds) }
-    if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
 
     val bitmap = resolver.openInputStream(uri)?.use { stream ->
         BitmapFactory.decodeStream(stream)
@@ -38,8 +39,8 @@ fun loadImageFromUri(context: Context, uri: Uri): LoadedImage? {
     return LoadedImage(
         uri = uri,
         filename = name,
-        width = bounds.outWidth,
-        height = bounds.outHeight,
+        width = bitmap.width,
+        height = bitmap.height,
         bitmap = bitmap.asImageBitmap()
     )
 }

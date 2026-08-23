@@ -452,7 +452,7 @@ private fun EmptyState(onPickImage: () -> Unit) {
                 Text("\u2B06  Upload Image")
             }
             Text(
-                "v1.1",
+                "v1.2",
                 style = MaterialTheme.typography.labelSmall,
                 color = TextMuted,
                 modifier = Modifier.padding(top = 10.dp)
