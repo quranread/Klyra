@@ -334,11 +334,7 @@ private fun ProCropPanel(
                 icon = Icons.Filled.Lock,
                 active = cropState.lockedAspect != null
             ) {
-                if (cropState.lockedAspect == null) {
-                    cropState.setAspect(cropState.width / cropState.height)
-                } else {
-                    cropState.setAspect(null)
-                }
+                cropState.toggleLockCurrentAspect()
             }
             ToolIconButton(
                 icon = Icons.Filled.RadioButtonUnchecked,

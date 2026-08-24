@@ -48,25 +48,39 @@ class CropRectState(private val naturalW: Int, private val naturalH: Int) {
         lockedAspect = null
     }
 
-    /** Applies an aspect ratio, shrinking the current rect around its own center to fit it. */
+    /**
+     * Applies an aspect ratio: always the LARGEST rect of that ratio that
+     * fits the full natural image, centered. Previously this shrank the
+     * CURRENT (already-shrunk) rect, so repeat-tapping the same chip — or
+     * switching between chips — kept shrinking further each time instead of
+     * landing on a consistent size. Recomputing from the full image every
+     * time makes it idempotent: any number of taps on the same ratio gives
+     * the same result.
+     */
     fun setAspect(ratio: Float?) {
         lockedAspect = ratio
         if (ratio == null) return
-        val cx = (left + right) / 2f
-        val cy = (top + bottom) / 2f
-        var w = width
+        var w = naturalW.toFloat()
         var h = w / ratio
-        if (h > height) {
-            h = height
+        if (h > naturalH) {
+            h = naturalH.toFloat()
             w = h * ratio
         }
-        var newLeft = (cx - w / 2f).coerceAtLeast(0f)
-        var newTop = (cy - h / 2f).coerceAtLeast(0f)
-        var newRight = (newLeft + w).coerceAtMost(naturalW.toFloat())
-        var newBottom = (newTop + h).coerceAtMost(naturalH.toFloat())
-        newLeft = newRight - w
-        newTop = newBottom - h
-        left = newLeft; top = newTop; right = newRight; bottom = newBottom
+        val newLeft = ((naturalW - w) / 2f).coerceAtLeast(0f)
+        val newTop = ((naturalH - h) / 2f).coerceAtLeast(0f)
+        left = newLeft
+        top = newTop
+        right = (newLeft + w).coerceAtMost(naturalW.toFloat())
+        bottom = (newTop + h).coerceAtMost(naturalH.toFloat())
+    }
+
+    /**
+     * Locks (or unlocks) further drags to the rect's CURRENT aspect ratio,
+     * without moving or resizing it — unlike [setAspect], which is for the
+     * preset chips and snaps to the largest rect of a given ratio.
+     */
+    fun toggleLockCurrentAspect() {
+        lockedAspect = if (lockedAspect == null) width / height else null
     }
 
     /** Moves the whole rect by (dx, dy) natural px, clamped so it never leaves the image. */
