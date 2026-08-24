@@ -7,16 +7,27 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Flip
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.OpenInFull
+import androidx.compose.material.icons.filled.RadioButtonUnchecked
+import androidx.compose.material.icons.filled.RotateLeft
+import androidx.compose.material.icons.filled.RotateRight
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
@@ -123,26 +134,38 @@ private fun ProCropPanel(
     // existing elements against it.
     var geometryChanged by remember { mutableStateOf(false) }
 
-    Column(
+    // Reference measurement (1080x2436 screenshot, dialog height 2107px):
+    // top toolbar 119px, preview 1625px, tools area below preview 363px.
+    // Expressed as fractions of the panel's *actual* height so the same
+    // proportions hold on any device.
+    val topToolbarHeightFraction = 119f / 2107f
+    val previewHeightFraction = 1625f / 2107f
+    val toolsAreaHeightFraction = 363f / 2107f
+
+    BoxWithConstraints(
         modifier = modifier
             .clip(RoundedCornerShape(18.dp))
             .background(BgDeep)
     ) {
+        val panelHeight = maxHeight
+        Column(modifier = Modifier.fillMaxSize()) {
         // Top bar
         Box(
             modifier = Modifier
+                .height(panelHeight * topToolbarHeightFraction)
                 .fillMaxWidth()
-                .background(BgPanel)
-                .padding(vertical = 14.dp),
+                .background(BgPanel),
             contentAlignment = Alignment.Center
         ) {
             Text("Crop", color = Color.White, fontWeight = FontWeight.Bold)
         }
 
-        // Canvas
+        // Canvas — fixed to the exact measured proportion of the dialog's
+        // total height, not "whatever space is left" (weight(1f) doesn't
+        // guarantee an exact match if the other rows' heights vary).
         Box(
             modifier = Modifier
-                .weight(1f)
+                .height(panelHeight * previewHeightFraction)
                 .fillMaxWidth()
                 .background(BgDeep)
                 .onSizeChanged { containerSize = Size(it.width.toFloat(), it.height.toFloat()) },
@@ -240,12 +263,23 @@ private fun ProCropPanel(
             }
         }
 
+        // Everything below the preview (aspect strip + rotate/reset/lock/oval
+        // row + flip/cancel/done row) is capped to the exact measured 363px
+        // (17.23% of dialog height) — this whole block gets a compact
+        // rework once the reference "tools" screenshot arrives; for now the
+        // three rows share this fixed-height space with tighter padding.
+        Column(
+            modifier = Modifier
+                .height(panelHeight * toolsAreaHeightFraction)
+                .fillMaxWidth()
+        ) {
         // Aspect ratio strip — same presets/state as the existing CropScreen
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .weight(1f)
                 .background(Color(0xFF161616))
-                .padding(vertical = 10.dp)
+                .padding(vertical = 4.dp)
         ) {
             LazyRow(
                 contentPadding = PaddingValues(horizontal = 16.dp),
@@ -266,22 +300,29 @@ private fun ProCropPanel(
             }
         }
 
-        // Rotate / Reset / Lock / Oval
+        // Rotate / Reset / Lock / Oval — icon-only, white row (matches reference)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(BgPanel)
-                .padding(vertical = 14.dp),
+                .weight(1f)
+                .background(Color.White)
+                .padding(vertical = 4.dp),
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            ToolIconButton(label = "Rotate") {
+            ToolIconButton(icon = Icons.Filled.RotateLeft) {
                 workingBitmap = CropTransform.rotate90(workingBitmap)
                 naturalW = workingBitmap.width
                 naturalH = workingBitmap.height
                 geometryChanged = true
             }
-            ToolIconButton(label = "Reset") {
+            ToolIconButton(icon = Icons.Filled.RotateRight) {
+                workingBitmap = CropTransform.rotate90(workingBitmap)
+                naturalW = workingBitmap.width
+                naturalH = workingBitmap.height
+                geometryChanged = true
+            }
+            ToolIconButton(icon = Icons.Filled.OpenInFull) {
                 workingBitmap = sourceBitmap
                 naturalW = sourceBitmap.width
                 naturalH = sourceBitmap.height
@@ -290,7 +331,7 @@ private fun ProCropPanel(
                 geometryChanged = false
             }
             ToolIconButton(
-                label = "Lock",
+                icon = Icons.Filled.Lock,
                 active = cropState.lockedAspect != null
             ) {
                 if (cropState.lockedAspect == null) {
@@ -300,34 +341,39 @@ private fun ProCropPanel(
                 }
             }
             ToolIconButton(
-                label = "Oval",
+                icon = Icons.Filled.RadioButtonUnchecked,
                 active = transformState.isOval
             ) { transformState.toggleOval() }
         }
 
-        // Flip / Cancel / Done
+        // Flip / Cancel / Confirm — icon-only, white row (matches reference)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(BgPanel)
-                .padding(vertical = 14.dp, horizontal = 16.dp),
+                .weight(1f)
+                .background(Color.White)
+                .padding(vertical = 4.dp, horizontal = 16.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            ToolIconButton(label = "Flip H", active = transformState.flippedH) {
+            ToolIconButton(icon = Icons.Filled.Flip, active = transformState.flippedH) {
                 workingBitmap = CropTransform.flipHorizontal(workingBitmap)
                 transformState.toggleFlipH()
                 geometryChanged = true
             }
-            ToolIconButton(label = "Flip V", active = transformState.flippedV) {
+            ToolIconButton(
+                icon = Icons.Filled.Flip,
+                active = transformState.flippedV,
+                rotationDegrees = 90f
+            ) {
                 workingBitmap = CropTransform.flipVertical(workingBitmap)
                 transformState.toggleFlipV()
                 geometryChanged = true
             }
-            TextButton(onClick = onCancel) {
-                Text("Cancel", color = Color(0xFFFF6B6B))
-            }
-            Button(
+            ToolIconButton(icon = Icons.Filled.Close, tint = Color(0xFFE05353), onClick = onCancel)
+            ToolIconButton(
+                icon = Icons.Filled.Check,
+                tint = Amber,
                 onClick = {
                     val cl = cropState.left.roundToInt()
                     val ct = cropState.top.roundToInt()
@@ -340,25 +386,29 @@ private fun ProCropPanel(
                         oval = transformState.isOval
                     )
                     onApply(result, cl, ct, geometryChanged)
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = Amber, contentColor = OnAmber)
-            ) { Text("Done") }
+                }
+            )
+        }
+        }
         }
     }
 }
 
 @Composable
-private fun ToolIconButton(label: String, active: Boolean = false, onClick: () -> Unit) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
+private fun ToolIconButton(
+    icon: ImageVector,
+    active: Boolean = false,
+    tint: Color = Color(0xFF2B2B2B),
+    rotationDegrees: Float = 0f,
+    onClick: () -> Unit
+) {
+    Icon(
+        imageVector = icon,
+        contentDescription = null,
+        tint = if (active) Amber else tint,
         modifier = Modifier
+            .size(30.dp)
+            .rotate(rotationDegrees)
             .clickable(onClick = onClick)
-            .padding(horizontal = 10.dp, vertical = 4.dp)
-    ) {
-        Text(
-            label,
-            color = if (active) Amber else Color(0xFF9A9A9A),
-            fontWeight = if (active) FontWeight.Bold else FontWeight.Normal
-        )
-    }
+    )
 }
