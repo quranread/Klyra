@@ -307,9 +307,7 @@ private fun EditorScreen(viewModel: BlueprintViewModel) {
                         // Rotate/flip was used at least once — old dot/line
                         // coordinates no longer map onto this image, so start
                         // this image's mapping fresh instead of corrupting them.
-                        viewModel.clearAll()
-                        viewModel.naturalW = result.width
-                        viewModel.naturalH = result.height
+                        viewModel.replaceImageGeometry(result.width, result.height)
                     } else {
                         // Plain crop only — safe to re-anchor existing elements.
                         viewModel.applyCrop(cropLeft, cropTop, result.width, result.height)

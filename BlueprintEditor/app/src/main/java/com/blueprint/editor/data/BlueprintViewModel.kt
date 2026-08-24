@@ -231,6 +231,24 @@ class BlueprintViewModel : ViewModel() {
         selectedId = null
     }
 
+    /**
+     * Used after Pro Crop's rotate/flip: old dot/line coordinates no longer
+     * correspond to the new pixel geometry, so this clears mapped elements
+     * (same as [clearAll]) and updates naturalW/H in one call — naturalW/H
+     * have private setters, so this can't be done piecemeal from outside.
+     */
+    fun replaceImageGeometry(newW: Int, newH: Int) {
+        elements.clear()
+        redoStack.clear()
+        nextDotIndex = 1
+        nextLineIndex = 1
+        selectedId = null
+        pendingLineStart = null
+        pendingBoxStart = null
+        naturalW = newW
+        naturalH = newH
+    }
+
     // ---- Selection + editing ----
 
     fun selectElement(id: String?) {
