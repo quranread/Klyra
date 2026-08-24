@@ -56,7 +56,16 @@ private const val MARGIN_BOTTOM_FRAC = 169f / REF_H
 fun ProCropDialog(
     sourceBitmap: ImageBitmap,
     onDismiss: () -> Unit,
-    onApply: (ImageBitmap) -> Unit
+    /**
+     * [result] = the final cropped (and, if used, rotated/flipped/oval-masked)
+     * bitmap. [cropLeft]/[cropTop] = the crop rect's top-left in the *working*
+     * bitmap's pixel space — only meaningful re: the ORIGINAL image when
+     * [geometryChanged] is false. [geometryChanged] is true if rotate or flip
+     * was used even once, meaning existing mapped elements (dots/lines) can no
+     * longer be simply re-anchored by subtracting an offset — the caller
+     * should treat this as a fresh image rather than trying to remap them.
+     */
+    onApply: (result: ImageBitmap, cropLeft: Int, cropTop: Int, geometryChanged: Boolean) -> Unit
 ) {
     Dialog(
         onDismissRequest = onDismiss,
@@ -92,7 +101,7 @@ fun ProCropDialog(
 private fun ProCropPanel(
     sourceBitmap: ImageBitmap,
     onCancel: () -> Unit,
-    onApply: (ImageBitmap) -> Unit,
+    onApply: (result: ImageBitmap, cropLeft: Int, cropTop: Int, geometryChanged: Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
     // Rotate/flip are baked into the working bitmap immediately, so pixels on
@@ -108,6 +117,11 @@ private fun ProCropPanel(
 
     var containerSize by remember { mutableStateOf(Size.Zero) }
     val density = LocalDensity.current
+    // True the moment rotate/flip is used even once — after that, the crop
+    // rect's (left, top) no longer maps back to the original image's pixel
+    // space by simple subtraction, so the caller must not try to re-anchor
+    // existing elements against it.
+    var geometryChanged by remember { mutableStateOf(false) }
 
     Column(
         modifier = modifier
@@ -265,6 +279,7 @@ private fun ProCropPanel(
                 workingBitmap = CropTransform.rotate90(workingBitmap)
                 naturalW = workingBitmap.width
                 naturalH = workingBitmap.height
+                geometryChanged = true
             }
             ToolIconButton(label = "Reset") {
                 workingBitmap = sourceBitmap
@@ -272,6 +287,7 @@ private fun ProCropPanel(
                 naturalH = sourceBitmap.height
                 cropState.reset()
                 transformState.reset()
+                geometryChanged = false
             }
             ToolIconButton(
                 label = "Lock",
@@ -301,25 +317,29 @@ private fun ProCropPanel(
             ToolIconButton(label = "Flip H", active = transformState.flippedH) {
                 workingBitmap = CropTransform.flipHorizontal(workingBitmap)
                 transformState.toggleFlipH()
+                geometryChanged = true
             }
             ToolIconButton(label = "Flip V", active = transformState.flippedV) {
                 workingBitmap = CropTransform.flipVertical(workingBitmap)
                 transformState.toggleFlipV()
+                geometryChanged = true
             }
             TextButton(onClick = onCancel) {
                 Text("Cancel", color = Color(0xFFFF6B6B))
             }
             Button(
                 onClick = {
+                    val cl = cropState.left.roundToInt()
+                    val ct = cropState.top.roundToInt()
                     val result = CropTransform.cropAndMask(
                         source = workingBitmap,
-                        left = cropState.left.roundToInt(),
-                        top = cropState.top.roundToInt(),
+                        left = cl,
+                        top = ct,
                         width = cropState.width.roundToInt(),
                         height = cropState.height.roundToInt(),
                         oval = transformState.isOval
                     )
-                    onApply(result)
+                    onApply(result, cl, ct, geometryChanged)
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = Amber, contentColor = OnAmber)
             ) { Text("Done") }
@@ -342,4 +362,3 @@ private fun ToolIconButton(label: String, active: Boolean = false, onClick: () -
         )
     }
 }
-

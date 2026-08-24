@@ -22,7 +22,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
@@ -31,14 +30,13 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import com.blueprint.editor.data.BlueprintViewModel
 import com.blueprint.editor.data.DrawMode
-import com.blueprint.editor.data.cropBitmap
 import com.blueprint.editor.data.loadImageFromUri
 import com.blueprint.editor.export.buildAiInstructions
 import com.blueprint.editor.export.buildAnnotatedBitmap
 import com.blueprint.editor.export.buildBlueprintJson
 import com.blueprint.editor.ui.canvas.BlueprintCanvas
 import com.blueprint.editor.ui.canvas.CanvasTransformState
-import com.blueprint.editor.ui.crop.CropScreen
+import com.blueprint.editor.ui.crop.ProCropDialog
 import com.blueprint.editor.ui.components.AiInstructionsSheet
 import com.blueprint.editor.ui.components.EditSheet
 import com.blueprint.editor.ui.components.ElementsListSheet
@@ -294,22 +292,28 @@ private fun EditorScreen(viewModel: BlueprintViewModel) {
         )
     }
 
-    // Full-screen crop tool. Rendered as a top-level overlay (not a dialog/
-    // sheet) since it needs the whole screen for comfortable dragging —
-    // matches how the Dot/Line/Box tools get the full canvas.
+    // Pro Crop tool — its own floating Dialog window (see ProCropDialog.kt),
+    // positioned per the exact reference measurements rather than taking the
+    // full screen like the old CropScreen did.
     if (showCrop) {
         val currentBitmap = bitmap
         if (currentBitmap != null) {
-            CropScreen(
-                bitmap = currentBitmap,
-                naturalW = viewModel.naturalW,
-                naturalH = viewModel.naturalH,
-                onCancel = { showCrop = false },
-                onApply = { left, top, width, height ->
-                    val androidBitmap = currentBitmap.asAndroidBitmap()
-                    val cropped = cropBitmap(androidBitmap, left, top, width, height)
-                    bitmap = cropped.asImageBitmap()
-                    viewModel.applyCrop(left, top, cropped.width, cropped.height)
+            ProCropDialog(
+                sourceBitmap = currentBitmap,
+                onDismiss = { showCrop = false },
+                onApply = { result, cropLeft, cropTop, geometryChanged ->
+                    bitmap = result
+                    if (geometryChanged) {
+                        // Rotate/flip was used at least once — old dot/line
+                        // coordinates no longer map onto this image, so start
+                        // this image's mapping fresh instead of corrupting them.
+                        viewModel.clearAll()
+                        viewModel.naturalW = result.width
+                        viewModel.naturalH = result.height
+                    } else {
+                        // Plain crop only — safe to re-anchor existing elements.
+                        viewModel.applyCrop(cropLeft, cropTop, result.width, result.height)
+                    }
                     showCrop = false
                 }
             )
