@@ -12,6 +12,7 @@ import androidx.activity.viewModels
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.automirrored.filled.Redo
 import androidx.compose.material.icons.automirrored.filled.TrendingFlat
@@ -37,6 +38,8 @@ import com.blueprint.editor.export.buildBlueprintJson
 import com.blueprint.editor.ui.canvas.BlueprintCanvas
 import com.blueprint.editor.ui.canvas.CanvasTransformState
 import com.blueprint.editor.ui.crop.ProCropDialog
+import com.blueprint.editor.ui.home.HomeScreen
+import com.blueprint.editor.pixellab.PixelLabScreen
 import com.blueprint.editor.ui.components.AiInstructionsSheet
 import com.blueprint.editor.ui.components.EditSheet
 import com.blueprint.editor.ui.components.ElementsListSheet
@@ -59,15 +62,33 @@ class MainActivity : ComponentActivity() {
         setContent {
             BlueprintEditorTheme {
                 Surface {
-                    EditorScreen(viewModel)
+                    // Landing screen picks between the two tools in this app.
+                    // Kept as simple local nav state (no navigation library)
+                    // since there are only three destinations.
+                    var currentScreen by remember { mutableStateOf(AppScreen.HOME) }
+                    when (currentScreen) {
+                        AppScreen.HOME -> HomeScreen(
+                            onOpenBlueprintEditor = { currentScreen = AppScreen.BLUEPRINT_EDITOR },
+                            onOpenPixelLab = { currentScreen = AppScreen.PIXELLAB }
+                        )
+                        AppScreen.BLUEPRINT_EDITOR -> EditorScreen(
+                            viewModel,
+                            onHome = { currentScreen = AppScreen.HOME }
+                        )
+                        AppScreen.PIXELLAB -> PixelLabScreen(
+                            onBack = { currentScreen = AppScreen.HOME }
+                        )
+                    }
                 }
             }
         }
     }
 }
 
+private enum class AppScreen { HOME, BLUEPRINT_EDITOR, PIXELLAB }
+
 @Composable
-private fun EditorScreen(viewModel: BlueprintViewModel) {
+private fun EditorScreen(viewModel: BlueprintViewModel, onHome: () -> Unit) {
     var bitmap by remember { mutableStateOf<ImageBitmap?>(null) }
     val transform = remember { CanvasTransformState() }
     var canvasSize by remember { mutableStateOf(androidx.compose.ui.geometry.Size.Zero) }
@@ -140,7 +161,8 @@ private fun EditorScreen(viewModel: BlueprintViewModel) {
                 onExportJson = { exportJsonLauncher.launch("${baseName()}_blueprint.json") },
                 onExportPng = { exportPngLauncher.launch("${baseName()}_annotated.png") },
                 onClearAll = { showClearConfirm = true },
-                onCrop = { showCrop = true }
+                onCrop = { showCrop = true },
+                onHome = onHome
             )
         },
         bottomBar = { if (bitmap != null) ToolBar(viewModel, onCropClick = { showCrop = true }) }
@@ -331,7 +353,8 @@ private fun EditorTopBar(
     onExportJson: () -> Unit,
     onExportPng: () -> Unit,
     onClearAll: () -> Unit,
-    onCrop: () -> Unit
+    onCrop: () -> Unit,
+    onHome: () -> Unit
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
 
@@ -342,6 +365,11 @@ private fun EditorTopBar(
                 if (viewModel.filename.isNotEmpty()) {
                     Text(viewModel.filename, style = MaterialTheme.typography.labelSmall, color = TextMuted)
                 }
+            }
+        },
+        navigationIcon = {
+            IconButton(onClick = onHome) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Home")
             }
         },
         colors = TopAppBarDefaults.topAppBarColors(
