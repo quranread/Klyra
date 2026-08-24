@@ -143,7 +143,7 @@ private fun EditorScreen(viewModel: BlueprintViewModel) {
                 onCrop = { showCrop = true }
             )
         },
-        bottomBar = { if (bitmap != null) ToolBar(viewModel) }
+        bottomBar = { if (bitmap != null) ToolBar(viewModel, onCropClick = { showCrop = true }) }
     ) { padding ->
         Column(modifier = Modifier.padding(padding).fillMaxSize()) {
             if (bitmap != null) {
@@ -415,12 +415,15 @@ private fun EditorTopBar(
 }
 
 @Composable
-private fun ToolBar(viewModel: BlueprintViewModel) {
+private fun ToolBar(viewModel: BlueprintViewModel, onCropClick: () -> Unit) {
     NavigationBar(containerColor = com.blueprint.editor.ui.theme.BgPanel3) {
         ToolBarItem(Icons.Filled.RadioButtonChecked, "Dot", viewModel.drawMode == DrawMode.DOT) { viewModel.selectDrawMode(DrawMode.DOT) }
         ToolBarItem(Icons.AutoMirrored.Filled.TrendingFlat, "Line", viewModel.drawMode == DrawMode.LINE) { viewModel.selectDrawMode(DrawMode.LINE) }
         ToolBarItem(Icons.Filled.CropSquare, "Box", viewModel.drawMode == DrawMode.BOX) { viewModel.selectDrawMode(DrawMode.BOX) }
         ToolBarItem(Icons.Filled.PanTool, "Pan", viewModel.drawMode == DrawMode.PAN) { viewModel.selectDrawMode(DrawMode.PAN) }
+        // Opens the Pro Crop dialog directly from the toolbar — doesn't
+        // change drawMode, so it's never "selected" like the others.
+        ToolBarItem(Icons.Filled.Crop, "Crop", selected = false, onClick = onCropClick)
     }
 }
 
@@ -429,8 +432,8 @@ private fun RowScope.ToolBarItem(icon: androidx.compose.ui.graphics.vector.Image
     NavigationBarItem(
         selected = selected,
         onClick = onClick,
-        icon = { Icon(icon, contentDescription = label) },
-        label = { Text(label) },
+        icon = { Icon(icon, contentDescription = label, modifier = Modifier.size(20.dp)) },
+        label = { Text(label, style = MaterialTheme.typography.labelSmall) },
         colors = NavigationBarItemDefaults.colors(selectedIconColor = Amber, indicatorColor = Amber.copy(alpha = 0.18f))
     )
 }
