@@ -19,6 +19,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -39,17 +40,21 @@ import androidx.compose.material.icons.filled.ZoomIn
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -62,6 +67,7 @@ import com.blueprint.editor.ui.theme.BgDeep
 import com.blueprint.editor.ui.theme.OnAmber
 import com.blueprint.editor.ui.theme.TextMuted
 import kotlin.math.cos
+import kotlin.math.roundToInt
 import kotlin.math.sin
 
 /** Matches the reference toolbar's blue. */
@@ -77,13 +83,24 @@ private const val TOPBAR_HEIGHT_FRACTION = 253f / 2321f
 private const val PRESETS_STRIP_HEIGHT_FRACTION = 297f / 2321f
 private const val ICON_ROW_HEIGHT_FRACTION = 113f / 2321f
 
+// Zoom bounds — 500% max (per the reference app) down to 20%, so both very
+// zoomed-in and very zoomed-out work correctly rather than just the middle.
+private const val MIN_ZOOM = 0.2f
+private const val MAX_ZOOM = 5f
+
 @Composable
 fun PixelLabScreen(onBack: () -> Unit) {
     var bitmap by remember { mutableStateOf<ImageBitmap?>(null) }
     var showCrop by remember { mutableStateOf(false) }
+    var showAddMenu by remember { mutableStateOf(false) }
+    var showGrid by remember { mutableStateOf(false) }
     // Filters is selected by default, matching the reference screenshot.
     var selectedCategory by remember { mutableStateOf(ToolCategory.FILTER) }
     val context = LocalContext.current
+
+    // Pinch-zoom / pan state for the canvas image.
+    var zoomScale by remember { mutableFloatStateOf(1f) }
+    var zoomOffset by remember { mutableStateOf(Offset.Zero) }
 
     // No visible back arrow in the reference bar, so the system/gesture back
     // button is what returns to Home instead.
@@ -93,6 +110,8 @@ fun PixelLabScreen(onBack: () -> Unit) {
         if (uri == null) return@rememberLauncherForActivityResult
         val loaded = loadImageFromUri(context, uri) ?: return@rememberLauncherForActivityResult
         bitmap = loaded.bitmap
+        zoomScale = 1f
+        zoomOffset = Offset.Zero
     }
 
     // BoxWithConstraints instead of LocalConfiguration.screenHeightDp — the
@@ -107,74 +126,119 @@ fun PixelLabScreen(onBack: () -> Unit) {
         val iconRowHeight = screenHeight * ICON_ROW_HEIGHT_FRACTION
 
         Scaffold(
-        topBar = {
-            PixelLabTopBar(
-                height = topBarHeight,
-                onAdd = { pickImage.launch("image/*") },
-                onSave = { /* TODO: export/save current bitmap — needs a save destination decided */ },
-                onShare = { /* TODO: Android share sheet — needs a FileProvider set up first */ },
-                onQuote = { /* TODO: unclear purpose yet — confirm what this should do */ },
-                onMore = { /* TODO: overflow menu — confirm what belongs in it */ },
-                onEdit = { if (bitmap != null) showCrop = true },
-                onDelete = { bitmap = null },
-                onUndo = { /* TODO: no edit history yet in PixelLab */ },
-                onZoom = { /* TODO: zoom control not implemented yet */ },
-                onGrid = { /* TODO: grid overlay not implemented yet */ },
-                onLayers = { /* TODO: layers panel not implemented yet */ }
-            )
-        },
-        bottomBar = {
-            // Just the placement for now, per your note — the preset strip's
-            // actual content and each category's real behaviour come later.
-            PixelLabBottomBar(
-                presetsStripHeight = presetsStripHeight,
-                iconRowHeight = iconRowHeight,
-                selected = selectedCategory,
-                onSelect = { selectedCategory = it }
-            )
-        }
-    ) { padding ->
-        Box(
-            modifier = Modifier
-                .padding(padding)
-                .fillMaxSize()
-                .background(BgDeep),
-            contentAlignment = Alignment.Center
-        ) {
-            val currentBitmap = bitmap
-            if (currentBitmap == null) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("No image loaded", color = TextMuted)
-                    Spacer(Modifier.height(16.dp))
-                    Button(
-                        onClick = { pickImage.launch("image/*") },
-                        colors = ButtonDefaults.buttonColors(containerColor = Amber, contentColor = OnAmber)
+            topBar = {
+                PixelLabTopBar(
+                    height = topBarHeight,
+                    zoomPercent = (zoomScale * 100).roundToInt(),
+                    gridActive = showGrid,
+                    showAddMenu = showAddMenu,
+                    onAddClick = { showAddMenu = true },
+                    onAddMenuDismiss = { showAddMenu = false },
+                    onAddFromGallery = {
+                        showAddMenu = false
+                        pickImage.launch("image/*")
+                    },
+                    onAddOther = { showAddMenu = false /* TODO: text/date/sticker/shape/draw — details later */ },
+                    onSave = { /* TODO: export/save current bitmap — needs a save destination decided */ },
+                    onShare = { /* TODO: Android share sheet — needs a FileProvider set up first */ },
+                    onQuote = { /* TODO: unclear purpose yet — confirm what this should do */ },
+                    onMore = { /* TODO: overflow menu — confirm what belongs in it */ },
+                    onEdit = { if (bitmap != null) showCrop = true },
+                    onDelete = { bitmap = null },
+                    onUndo = { /* TODO: no edit history yet in PixelLab */ },
+                    onZoomReset = { zoomScale = 1f; zoomOffset = Offset.Zero },
+                    onGrid = { showGrid = !showGrid },
+                    onLayers = { /* TODO: layers panel not implemented yet */ }
+                )
+            },
+            bottomBar = {
+                // Just the placement for now, per your note — the preset strip's
+                // actual content and each category's real behaviour come later.
+                PixelLabBottomBar(
+                    presetsStripHeight = presetsStripHeight,
+                    iconRowHeight = iconRowHeight,
+                    selected = selectedCategory,
+                    onSelect = { selectedCategory = it }
+                )
+            }
+        ) { padding ->
+            Box(
+                modifier = Modifier
+                    .padding(padding)
+                    .fillMaxSize()
+                    .background(BgDeep),
+                contentAlignment = Alignment.Center
+            ) {
+                val currentBitmap = bitmap
+                if (currentBitmap == null) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("No image loaded", color = TextMuted)
+                        Spacer(Modifier.height(16.dp))
+                        Button(
+                            onClick = { pickImage.launch("image/*") },
+                            colors = ButtonDefaults.buttonColors(containerColor = Amber, contentColor = OnAmber)
+                        ) {
+                            Icon(Icons.Filled.Upload, contentDescription = null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Pick Image")
+                        }
+                    }
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(16.dp)
+                            .pointerInput(Unit) {
+                                detectTransformGestures { _, pan, gestureZoom, _ ->
+                                    zoomScale = (zoomScale * gestureZoom).coerceIn(MIN_ZOOM, MAX_ZOOM)
+                                    zoomOffset += pan
+                                }
+                            }
                     ) {
-                        Icon(Icons.Filled.Upload, contentDescription = null)
-                        Spacer(Modifier.width(8.dp))
-                        Text("Pick Image")
+                        Image(
+                            bitmap = currentBitmap,
+                            contentDescription = null,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .graphicsLayer(
+                                    scaleX = zoomScale,
+                                    scaleY = zoomScale,
+                                    translationX = zoomOffset.x,
+                                    translationY = zoomOffset.y
+                                ),
+                            contentScale = ContentScale.Fit
+                        )
+                        if (showGrid) {
+                            GridOverlay(modifier = Modifier.fillMaxSize())
+                        }
                     }
                 }
-            } else {
-                Image(
-                    bitmap = currentBitmap,
-                    contentDescription = null,
-                    modifier = Modifier.fillMaxSize().padding(16.dp),
-                    contentScale = ContentScale.Fit
-                )
-            }
 
-            if (showCrop && currentBitmap != null) {
-                ProCropDialog(
-                    sourceBitmap = currentBitmap,
-                    onDismiss = { showCrop = false },
-                    onApply = { result, _, _, _ ->
-                        bitmap = result
-                        showCrop = false
-                    }
-                )
+                if (showCrop && currentBitmap != null) {
+                    ProCropDialog(
+                        sourceBitmap = currentBitmap,
+                        onDismiss = { showCrop = false },
+                        onApply = { result, _, _, _ ->
+                            bitmap = result
+                            showCrop = false
+                        }
+                    )
+                }
             }
         }
+    }
+}
+
+/** Simple 3x3 alignment grid drawn over the canvas when the Grid button is on. */
+@Composable
+private fun GridOverlay(modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier) {
+        val lineColor = Color.White.copy(alpha = 0.6f)
+        for (i in 1..2) {
+            val x = size.width * i / 3f
+            drawLine(lineColor, Offset(x, 0f), Offset(x, size.height), strokeWidth = 1.5f)
+            val y = size.height * i / 3f
+            drawLine(lineColor, Offset(0f, y), Offset(size.width, y), strokeWidth = 1.5f)
         }
     }
 }
@@ -190,7 +254,13 @@ fun PixelLabScreen(onBack: () -> Unit) {
 @Composable
 private fun PixelLabTopBar(
     height: Dp,
-    onAdd: () -> Unit,
+    zoomPercent: Int,
+    gridActive: Boolean,
+    showAddMenu: Boolean,
+    onAddClick: () -> Unit,
+    onAddMenuDismiss: () -> Unit,
+    onAddFromGallery: () -> Unit,
+    onAddOther: () -> Unit,
     onSave: () -> Unit,
     onShare: () -> Unit,
     onQuote: () -> Unit,
@@ -198,7 +268,7 @@ private fun PixelLabTopBar(
     onEdit: () -> Unit,
     onDelete: () -> Unit,
     onUndo: () -> Unit,
-    onZoom: () -> Unit,
+    onZoomReset: () -> Unit,
     onGrid: () -> Unit,
     onLayers: () -> Unit
 ) {
@@ -216,7 +286,17 @@ private fun PixelLabTopBar(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            TopBarIcon(Icons.Filled.Add, onAdd)
+            Box {
+                TopBarIcon(Icons.Filled.Add, onAddClick)
+                DropdownMenu(expanded = showAddMenu, onDismissRequest = onAddMenuDismiss) {
+                    DropdownMenuItem(text = { Text("text") }, onClick = onAddOther)
+                    DropdownMenuItem(text = { Text("current date") }, onClick = onAddOther)
+                    DropdownMenuItem(text = { Text("sticker") }, onClick = onAddOther)
+                    DropdownMenuItem(text = { Text("shapes") }, onClick = onAddOther)
+                    DropdownMenuItem(text = { Text("from gallery") }, onClick = onAddFromGallery)
+                    DropdownMenuItem(text = { Text("draw") }, onClick = onAddOther)
+                }
+            }
             TopBarIcon(Icons.Filled.Save, onSave)
             TopBarIcon(Icons.Filled.Share, onShare)
             TopBarIcon(Icons.Filled.FormatQuote, onQuote)
@@ -241,19 +321,37 @@ private fun PixelLabTopBar(
                 TopBarIcon(Icons.Filled.Delete, onDelete, size = 20.dp)
             }
             TopBarIcon(Icons.AutoMirrored.Filled.Undo, onUndo, size = 22.dp)
-            TopBarIcon(Icons.Filled.ZoomIn, onZoom, size = 22.dp)
-            TopBarIcon(Icons.Filled.GridOn, onGrid, size = 22.dp)
+            // Pill showing the live zoom % (pinch on the canvas to change it);
+            // tapping resets to 100%, matching a plain zoom button's usual role.
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(Color.Black.copy(alpha = 0.25f))
+                    .clickable(onClick = onZoomReset)
+                    .padding(horizontal = 10.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(Icons.Filled.ZoomIn, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(4.dp))
+                Text("$zoomPercent%", color = Color.White, style = MaterialTheme.typography.labelMedium)
+            }
+            TopBarIcon(
+                Icons.Filled.GridOn,
+                onGrid,
+                size = 22.dp,
+                tint = if (gridActive) Color.White else Color.White.copy(alpha = 0.5f)
+            )
             TopBarIcon(Icons.Filled.Layers, onLayers, size = 22.dp)
         }
     }
 }
 
 @Composable
-private fun TopBarIcon(icon: ImageVector, onClick: () -> Unit, size: Dp = 24.dp) {
+private fun TopBarIcon(icon: ImageVector, onClick: () -> Unit, size: Dp = 24.dp, tint: Color = Color.White) {
     Icon(
         imageVector = icon,
         contentDescription = null,
-        tint = Color.White,
+        tint = tint,
         modifier = Modifier
             .size(size)
             .clickable(onClick = onClick)
