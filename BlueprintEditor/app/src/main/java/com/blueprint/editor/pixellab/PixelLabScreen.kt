@@ -277,6 +277,10 @@ private fun PixelLabTopBar(
             .fillMaxWidth()
             .height(height)
             .background(ToolbarBlue)
+            // Pushes the two rows below the status bar instead of letting the
+            // OS's clock/battery icons draw on top of ours — total height
+            // stays fixed at `height` (this goes inside it, not on top of it).
+            .statusBarsPadding()
     ) {
         Row(
             modifier = Modifier
@@ -371,7 +375,12 @@ private fun PixelLabBottomBar(
     selected: ToolCategory,
     onSelect: (ToolCategory) -> Unit
 ) {
-    Column(modifier = Modifier.fillMaxWidth().background(Color(0xFFF5F5F5))) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color(0xFFF5F5F5))
+            .navigationBarsPadding()
+    ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
