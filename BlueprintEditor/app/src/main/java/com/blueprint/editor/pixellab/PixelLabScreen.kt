@@ -15,6 +15,7 @@ import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -23,6 +24,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AutoFixHigh
+import androidx.compose.material.icons.filled.ColorLens
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FormatQuote
@@ -42,11 +45,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.blueprint.editor.data.loadImageFromUri
 import com.blueprint.editor.ui.crop.ProCropDialog
@@ -54,14 +61,21 @@ import com.blueprint.editor.ui.theme.Amber
 import com.blueprint.editor.ui.theme.BgDeep
 import com.blueprint.editor.ui.theme.OnAmber
 import com.blueprint.editor.ui.theme.TextMuted
+import kotlin.math.cos
+import kotlin.math.sin
 
 /** Matches the reference toolbar's blue. */
 private val ToolbarBlue = Color(0xFF4A7FE0)
+
+/** The 5 tool categories along the bottom bar (reference screenshot). */
+private enum class ToolCategory { COLOR, TEXT, FILTER, LAYERS, MAGIC }
 
 @Composable
 fun PixelLabScreen(onBack: () -> Unit) {
     var bitmap by remember { mutableStateOf<ImageBitmap?>(null) }
     var showCrop by remember { mutableStateOf(false) }
+    // Filters is selected by default, matching the reference screenshot.
+    var selectedCategory by remember { mutableStateOf(ToolCategory.FILTER) }
     val context = LocalContext.current
 
     // No visible back arrow in the reference bar, so the system/gesture back
@@ -88,6 +102,14 @@ fun PixelLabScreen(onBack: () -> Unit) {
                 onZoom = { /* TODO: zoom control not implemented yet */ },
                 onGrid = { /* TODO: grid overlay not implemented yet */ },
                 onLayers = { /* TODO: layers panel not implemented yet */ }
+            )
+        },
+        bottomBar = {
+            // Just the placement for now, per your note — the preset strip's
+            // actual content and each category's real behaviour come later.
+            PixelLabBottomBar(
+                selected = selectedCategory,
+                onSelect = { selectedCategory = it }
             )
         }
     ) { padding ->
@@ -136,9 +158,12 @@ fun PixelLabScreen(onBack: () -> Unit) {
 }
 
 /**
- * Two-row toolbar matching the reference screenshot exactly: add / save /
- * share / quote / overflow on top, then a floating edit+delete pill on the
- * left with undo / zoom / grid / layers alongside it below.
+ * Two-row toolbar matching the reference screenshot: add / save / share /
+ * quote / overflow on top, then a floating edit+delete pill on the left with
+ * undo / zoom / grid / layers alongside it below.
+ *
+ * Padding trimmed down from the first pass (12dp/10dp vertical per row ->
+ * 4dp/2dp) — together that's roughly the ~30px-shorter bar that was asked for.
  */
 @Composable
 private fun PixelLabTopBar(
@@ -162,7 +187,7 @@ private fun PixelLabTopBar(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 12.dp),
+                .padding(horizontal = 20.dp, vertical = 4.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -175,7 +200,7 @@ private fun PixelLabTopBar(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 10.dp),
+                .padding(horizontal = 20.dp, vertical = 2.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -183,22 +208,22 @@ private fun PixelLabTopBar(
                 modifier = Modifier
                     .clip(RoundedCornerShape(50))
                     .background(Color.White.copy(alpha = 0.16f))
-                    .padding(horizontal = 6.dp, vertical = 6.dp),
+                    .padding(horizontal = 6.dp, vertical = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                TopBarIcon(Icons.Filled.Edit, onEdit, size = 22.dp)
-                TopBarIcon(Icons.Filled.Delete, onDelete, size = 22.dp)
+                TopBarIcon(Icons.Filled.Edit, onEdit, size = 20.dp)
+                TopBarIcon(Icons.Filled.Delete, onDelete, size = 20.dp)
             }
-            TopBarIcon(Icons.AutoMirrored.Filled.Undo, onUndo)
-            TopBarIcon(Icons.Filled.ZoomIn, onZoom)
-            TopBarIcon(Icons.Filled.GridOn, onGrid)
-            TopBarIcon(Icons.Filled.Layers, onLayers)
+            TopBarIcon(Icons.AutoMirrored.Filled.Undo, onUndo, size = 22.dp)
+            TopBarIcon(Icons.Filled.ZoomIn, onZoom, size = 22.dp)
+            TopBarIcon(Icons.Filled.GridOn, onGrid, size = 22.dp)
+            TopBarIcon(Icons.Filled.Layers, onLayers, size = 22.dp)
         }
     }
 }
 
 @Composable
-private fun TopBarIcon(icon: ImageVector, onClick: () -> Unit, size: androidx.compose.ui.unit.Dp = 24.dp) {
+private fun TopBarIcon(icon: ImageVector, onClick: () -> Unit, size: Dp = 24.dp) {
     Icon(
         imageVector = icon,
         contentDescription = null,
@@ -207,4 +232,90 @@ private fun TopBarIcon(icon: ImageVector, onClick: () -> Unit, size: androidx.co
             .size(size)
             .clickable(onClick = onClick)
     )
+}
+
+/**
+ * Bottom tool-category bar matching the reference screenshot: an (empty for
+ * now) preset/preview strip above 5 category icons — color, text, filters
+ * (hexagon), layers, and magic/auto-enhance. Selecting a category only swaps
+ * the highlighted icon right now; what each category actually shows in the
+ * strip above it is the "baaki tafseelat baad mein" part.
+ */
+@Composable
+private fun PixelLabBottomBar(selected: ToolCategory, onSelect: (ToolCategory) -> Unit) {
+    Column(modifier = Modifier.fillMaxWidth().background(Color(0xFFF5F5F5))) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(90.dp)
+                .background(Color(0xFFECECEC)),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                "Presets — coming soon",
+                color = TextMuted,
+                style = MaterialTheme.typography.bodySmall
+            )
+        }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            CategoryIcon(Icons.Filled.ColorLens, selected == ToolCategory.COLOR) { onSelect(ToolCategory.COLOR) }
+            CategoryLetterIcon(selected == ToolCategory.TEXT) { onSelect(ToolCategory.TEXT) }
+            CategoryHexagonIcon(selected == ToolCategory.FILTER) { onSelect(ToolCategory.FILTER) }
+            CategoryIcon(Icons.Filled.Layers, selected == ToolCategory.LAYERS) { onSelect(ToolCategory.LAYERS) }
+            CategoryIcon(Icons.Filled.AutoFixHigh, selected == ToolCategory.MAGIC) { onSelect(ToolCategory.MAGIC) }
+        }
+    }
+}
+
+@Composable
+private fun CategoryIcon(icon: ImageVector, active: Boolean, onClick: () -> Unit) {
+    Icon(
+        imageVector = icon,
+        contentDescription = null,
+        tint = if (active) Amber else Color(0xFF9A9A9A),
+        modifier = Modifier
+            .size(26.dp)
+            .clickable(onClick = onClick)
+    )
+}
+
+@Composable
+private fun CategoryLetterIcon(active: Boolean, onClick: () -> Unit) {
+    Text(
+        "A",
+        color = if (active) Amber else Color(0xFF9A9A9A),
+        fontWeight = FontWeight.Bold,
+        style = MaterialTheme.typography.titleLarge,
+        modifier = Modifier.clickable(onClick = onClick)
+    )
+}
+
+@Composable
+private fun CategoryHexagonIcon(active: Boolean, onClick: () -> Unit) {
+    val tint = if (active) Amber else Color(0xFF9A9A9A)
+    Canvas(
+        modifier = Modifier
+            .size(26.dp)
+            .clickable(onClick = onClick)
+    ) {
+        val r = size.minDimension / 2f
+        val cx = size.width / 2f
+        val cy = size.height / 2f
+        val path = androidx.compose.ui.graphics.Path().apply {
+            for (i in 0..5) {
+                val angle = Math.toRadians((60 * i - 90).toDouble())
+                val x = cx + r * cos(angle).toFloat()
+                val y = cy + r * sin(angle).toFloat()
+                if (i == 0) moveTo(x, y) else lineTo(x, y)
+            }
+            close()
+        }
+        drawPath(path, color = tint, style = Stroke(width = 2.5f))
+    }
 }
