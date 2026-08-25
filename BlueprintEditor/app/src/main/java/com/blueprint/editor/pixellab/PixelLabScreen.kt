@@ -45,12 +45,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
@@ -70,6 +71,13 @@ private val ToolbarBlue = Color(0xFF4A7FE0)
 /** The 5 tool categories along the bottom bar (reference screenshot). */
 private enum class ToolCategory { COLOR, TEXT, FILTER, LAYERS, MAGIC }
 
+// Reference measurements (Blueprint Editor, 1080x2321 screenshot), expressed
+// as fractions of total screen height so they hold on any device:
+// top bar 253px, presets placeholder strip 297px, bottom icon row 113px.
+private const val TOPBAR_HEIGHT_FRACTION = 253f / 2321f
+private const val PRESETS_STRIP_HEIGHT_FRACTION = 297f / 2321f
+private const val ICON_ROW_HEIGHT_FRACTION = 113f / 2321f
+
 @Composable
 fun PixelLabScreen(onBack: () -> Unit) {
     var bitmap by remember { mutableStateOf<ImageBitmap?>(null) }
@@ -77,6 +85,11 @@ fun PixelLabScreen(onBack: () -> Unit) {
     // Filters is selected by default, matching the reference screenshot.
     var selectedCategory by remember { mutableStateOf(ToolCategory.FILTER) }
     val context = LocalContext.current
+
+    val screenHeightDp = LocalConfiguration.current.screenHeightDp.dp
+    val topBarHeight = screenHeightDp * TOPBAR_HEIGHT_FRACTION
+    val presetsStripHeight = screenHeightDp * PRESETS_STRIP_HEIGHT_FRACTION
+    val iconRowHeight = screenHeightDp * ICON_ROW_HEIGHT_FRACTION
 
     // No visible back arrow in the reference bar, so the system/gesture back
     // button is what returns to Home instead.
@@ -91,6 +104,7 @@ fun PixelLabScreen(onBack: () -> Unit) {
     Scaffold(
         topBar = {
             PixelLabTopBar(
+                height = topBarHeight,
                 onAdd = { pickImage.launch("image/*") },
                 onSave = { /* TODO: export/save current bitmap — needs a save destination decided */ },
                 onShare = { /* TODO: Android share sheet — needs a FileProvider set up first */ },
@@ -108,6 +122,8 @@ fun PixelLabScreen(onBack: () -> Unit) {
             // Just the placement for now, per your note — the preset strip's
             // actual content and each category's real behaviour come later.
             PixelLabBottomBar(
+                presetsStripHeight = presetsStripHeight,
+                iconRowHeight = iconRowHeight,
                 selected = selectedCategory,
                 onSelect = { selectedCategory = it }
             )
@@ -160,13 +176,14 @@ fun PixelLabScreen(onBack: () -> Unit) {
 /**
  * Two-row toolbar matching the reference screenshot: add / save / share /
  * quote / overflow on top, then a floating edit+delete pill on the left with
- * undo / zoom / grid / layers alongside it below.
- *
- * Padding trimmed down from the first pass (12dp/10dp vertical per row ->
- * 4dp/2dp) — together that's roughly the ~30px-shorter bar that was asked for.
+ * undo / zoom / grid / layers alongside it below. [height] is the exact
+ * measured height (253px on a 2321px-tall reference screen) so the two
+ * internal rows just split it evenly rather than each having its own
+ * independent padding.
  */
 @Composable
 private fun PixelLabTopBar(
+    height: Dp,
     onAdd: () -> Unit,
     onSave: () -> Unit,
     onShare: () -> Unit,
@@ -182,12 +199,14 @@ private fun PixelLabTopBar(
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            .height(height)
             .background(ToolbarBlue)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 4.dp),
+                .weight(1f)
+                .padding(horizontal = 20.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -200,7 +219,8 @@ private fun PixelLabTopBar(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 2.dp),
+                .weight(1f)
+                .padding(horizontal = 20.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -237,17 +257,21 @@ private fun TopBarIcon(icon: ImageVector, onClick: () -> Unit, size: Dp = 24.dp)
 /**
  * Bottom tool-category bar matching the reference screenshot: an (empty for
  * now) preset/preview strip above 5 category icons — color, text, filters
- * (hexagon), layers, and magic/auto-enhance. Selecting a category only swaps
- * the highlighted icon right now; what each category actually shows in the
- * strip above it is the "baaki tafseelat baad mein" part.
+ * (hexagon), layers, and magic/auto-enhance. [presetsStripHeight] (297px ref)
+ * and [iconRowHeight] (113px ref) are the exact measured heights.
  */
 @Composable
-private fun PixelLabBottomBar(selected: ToolCategory, onSelect: (ToolCategory) -> Unit) {
+private fun PixelLabBottomBar(
+    presetsStripHeight: Dp,
+    iconRowHeight: Dp,
+    selected: ToolCategory,
+    onSelect: (ToolCategory) -> Unit
+) {
     Column(modifier = Modifier.fillMaxWidth().background(Color(0xFFF5F5F5))) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(90.dp)
+                .height(presetsStripHeight)
                 .background(Color(0xFFECECEC)),
             contentAlignment = Alignment.Center
         ) {
@@ -260,7 +284,8 @@ private fun PixelLabBottomBar(selected: ToolCategory, onSelect: (ToolCategory) -
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 24.dp, vertical = 10.dp),
+                .height(iconRowHeight)
+                .padding(horizontal = 24.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -307,7 +332,7 @@ private fun CategoryHexagonIcon(active: Boolean, onClick: () -> Unit) {
         val r = size.minDimension / 2f
         val cx = size.width / 2f
         val cy = size.height / 2f
-        val path = androidx.compose.ui.graphics.Path().apply {
+        val path = Path().apply {
             for (i in 0..5) {
                 val angle = Math.toRadians((60 * i - 90).toDouble())
                 val x = cx + r * cos(angle).toFloat()
