@@ -51,7 +51,6 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
@@ -86,11 +85,6 @@ fun PixelLabScreen(onBack: () -> Unit) {
     var selectedCategory by remember { mutableStateOf(ToolCategory.FILTER) }
     val context = LocalContext.current
 
-    val screenHeightDp = LocalConfiguration.current.screenHeightDp.dp
-    val topBarHeight = screenHeightDp * TOPBAR_HEIGHT_FRACTION
-    val presetsStripHeight = screenHeightDp * PRESETS_STRIP_HEIGHT_FRACTION
-    val iconRowHeight = screenHeightDp * ICON_ROW_HEIGHT_FRACTION
-
     // No visible back arrow in the reference bar, so the system/gesture back
     // button is what returns to Home instead.
     BackHandler(onBack = onBack)
@@ -101,7 +95,18 @@ fun PixelLabScreen(onBack: () -> Unit) {
         bitmap = loaded.bitmap
     }
 
-    Scaffold(
+    // BoxWithConstraints instead of LocalConfiguration.screenHeightDp — the
+    // latter doesn't reliably account for the status/navigation bar insets
+    // this edge-to-edge app draws under, so the computed heights were
+    // slightly off from the reference measurements. This measures the actual
+    // Compose layout space, matching what a raw screenshot captures.
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val screenHeight = maxHeight
+        val topBarHeight = screenHeight * TOPBAR_HEIGHT_FRACTION
+        val presetsStripHeight = screenHeight * PRESETS_STRIP_HEIGHT_FRACTION
+        val iconRowHeight = screenHeight * ICON_ROW_HEIGHT_FRACTION
+
+        Scaffold(
         topBar = {
             PixelLabTopBar(
                 height = topBarHeight,
@@ -169,6 +174,7 @@ fun PixelLabScreen(onBack: () -> Unit) {
                     }
                 )
             }
+        }
         }
     }
 }

@@ -67,7 +67,26 @@ object CropTransform {
         canvas.drawOval(RectF(0f, 0f, safeW.toFloat(), safeH.toFloat()), paint)
         paint.xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_IN)
         canvas.drawBitmap(cropped, 0f, 0f, paint)
+        cropped.recycle()
         return output.asImageBitmap()
+    }
+
+    /**
+     * Frees the Android bitmap behind [bitmap], unless it's the same object
+     * as [protect] (typically the original source bitmap, which the caller
+     * still owns and may need again — e.g. Reset, or if the user cancels).
+     * Every rotate/flip/crop here allocates a brand-new full-resolution
+     * bitmap; without this, repeated rotates/flips pile up tens of MB each
+     * and eventually crash the app with an OutOfMemoryError.
+     */
+    fun recycleIfNotProtected(bitmap: ImageBitmap, protect: ImageBitmap) {
+        if (bitmap === protect) return
+        try {
+            val android = bitmap.asAndroidBitmap()
+            if (!android.isRecycled) android.recycle()
+        } catch (_: Throwable) {
+            // Never let cleanup itself crash the app.
+        }
     }
 }
 

@@ -134,6 +134,17 @@ private fun ProCropPanel(
     // existing elements against it.
     var geometryChanged by remember { mutableStateOf(false) }
 
+    // Frees whatever the working bitmap ends up being when this dialog
+    // closes for ANY reason (Cancel, system back, tapping outside) — Done
+    // already recycles it itself right before calling onApply. Without this,
+    // cancelling after a rotate/flip would leak that intermediate bitmap.
+    val latestWorkingBitmap = rememberUpdatedState(workingBitmap)
+    DisposableEffect(Unit) {
+        onDispose {
+            CropTransform.recycleIfNotProtected(latestWorkingBitmap.value, sourceBitmap)
+        }
+    }
+
     // Reference measurement (1080x2436 screenshot, dialog height 2107px):
     // top toolbar 119px, preview 1625px, tools area below preview 363px.
     // Expressed as fractions of the panel's *actual* height so the same
@@ -311,18 +322,23 @@ private fun ProCropPanel(
             verticalAlignment = Alignment.CenterVertically
         ) {
             ToolIconButton(icon = Icons.Filled.RotateLeft) {
-                workingBitmap = CropTransform.rotate90(workingBitmap)
+                val old = workingBitmap
+                workingBitmap = CropTransform.rotate90(old)
+                CropTransform.recycleIfNotProtected(old, sourceBitmap)
                 naturalW = workingBitmap.width
                 naturalH = workingBitmap.height
                 geometryChanged = true
             }
             ToolIconButton(icon = Icons.Filled.RotateRight) {
-                workingBitmap = CropTransform.rotate90(workingBitmap)
+                val old = workingBitmap
+                workingBitmap = CropTransform.rotate90(old)
+                CropTransform.recycleIfNotProtected(old, sourceBitmap)
                 naturalW = workingBitmap.width
                 naturalH = workingBitmap.height
                 geometryChanged = true
             }
             ToolIconButton(icon = Icons.Filled.OpenInFull) {
+                CropTransform.recycleIfNotProtected(workingBitmap, sourceBitmap)
                 workingBitmap = sourceBitmap
                 naturalW = sourceBitmap.width
                 naturalH = sourceBitmap.height
@@ -353,7 +369,9 @@ private fun ProCropPanel(
             verticalAlignment = Alignment.CenterVertically
         ) {
             ToolIconButton(icon = Icons.Filled.Flip, active = transformState.flippedH) {
-                workingBitmap = CropTransform.flipHorizontal(workingBitmap)
+                val old = workingBitmap
+                workingBitmap = CropTransform.flipHorizontal(old)
+                CropTransform.recycleIfNotProtected(old, sourceBitmap)
                 transformState.toggleFlipH()
                 geometryChanged = true
             }
@@ -362,7 +380,9 @@ private fun ProCropPanel(
                 active = transformState.flippedV,
                 rotationDegrees = 90f
             ) {
-                workingBitmap = CropTransform.flipVertical(workingBitmap)
+                val old = workingBitmap
+                workingBitmap = CropTransform.flipVertical(old)
+                CropTransform.recycleIfNotProtected(old, sourceBitmap)
                 transformState.toggleFlipV()
                 geometryChanged = true
             }
@@ -381,6 +401,10 @@ private fun ProCropPanel(
                         height = cropState.height.roundToInt(),
                         oval = transformState.isOval
                     )
+                    // The full-size working canvas (post rotate/flip) isn't
+                    // needed anymore now that we've cropped out of it — only
+                    // `result` gets kept.
+                    CropTransform.recycleIfNotProtected(workingBitmap, sourceBitmap)
                     onApply(result, cl, ct, geometryChanged)
                 }
             )
