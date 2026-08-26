@@ -55,8 +55,15 @@ object CropTransform {
         val src = source.asAndroidBitmap()
         val safeLeft = left.coerceIn(0, (src.width - 1).coerceAtLeast(0))
         val safeTop = top.coerceIn(0, (src.height - 1).coerceAtLeast(0))
-        val safeW = width.coerceIn(1, src.width - safeLeft)
-        val safeH = height.coerceIn(1, src.height - safeTop)
+        // The upper bound here MUST be at least 1, or coerceIn throws
+        // (min > max) whenever the crop rect touches the right/bottom edge —
+        // e.g. safeLeft == src.width leaves zero room, and width.coerceIn(1, 0)
+        // crashes immediately. This is the crop-tool crash: cropping near an
+        // edge and tapping Done hit this every time.
+        val maxW = (src.width - safeLeft).coerceAtLeast(1)
+        val maxH = (src.height - safeTop).coerceAtLeast(1)
+        val safeW = width.coerceIn(1, maxW)
+        val safeH = height.coerceIn(1, maxH)
 
         val cropped = Bitmap.createBitmap(src, safeLeft, safeTop, safeW, safeH)
         if (!oval) return cropped.asImageBitmap()

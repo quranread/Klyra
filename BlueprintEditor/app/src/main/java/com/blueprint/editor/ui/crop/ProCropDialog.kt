@@ -1,5 +1,6 @@
 package com.blueprint.editor.ui.crop
 
+import android.widget.Toast
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -30,6 +31,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
@@ -115,6 +117,18 @@ private fun ProCropPanel(
     onApply: (result: ImageBitmap, cropLeft: Int, cropTop: Int, geometryChanged: Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
+    // Wraps a crop-tool action (rotate/flip/reset/done) so a failure shows a
+    // readable error instead of crashing the whole app. If this ever fires,
+    // the Toast text is the exact exception — that's what to report back.
+    fun safeRun(action: () -> Unit) {
+        try {
+            action()
+        } catch (e: Throwable) {
+            Toast.makeText(context, "Crop error: ${e.javaClass.simpleName}: ${e.message}", Toast.LENGTH_LONG).show()
+        }
+    }
+
     // Rotate/flip are baked into the working bitmap immediately, so pixels on
     // screen always match what Done will actually crop out of.
     var workingBitmap by remember { mutableStateOf(sourceBitmap) }
@@ -322,29 +336,35 @@ private fun ProCropPanel(
             verticalAlignment = Alignment.CenterVertically
         ) {
             ToolIconButton(icon = Icons.Filled.RotateLeft) {
-                val old = workingBitmap
-                workingBitmap = CropTransform.rotate90(old)
-                CropTransform.recycleIfNotProtected(old, sourceBitmap)
-                naturalW = workingBitmap.width
-                naturalH = workingBitmap.height
-                geometryChanged = true
+                safeRun {
+                    val old = workingBitmap
+                    workingBitmap = CropTransform.rotate90(old)
+                    CropTransform.recycleIfNotProtected(old, sourceBitmap)
+                    naturalW = workingBitmap.width
+                    naturalH = workingBitmap.height
+                    geometryChanged = true
+                }
             }
             ToolIconButton(icon = Icons.Filled.RotateRight) {
-                val old = workingBitmap
-                workingBitmap = CropTransform.rotate90(old)
-                CropTransform.recycleIfNotProtected(old, sourceBitmap)
-                naturalW = workingBitmap.width
-                naturalH = workingBitmap.height
-                geometryChanged = true
+                safeRun {
+                    val old = workingBitmap
+                    workingBitmap = CropTransform.rotate90(old)
+                    CropTransform.recycleIfNotProtected(old, sourceBitmap)
+                    naturalW = workingBitmap.width
+                    naturalH = workingBitmap.height
+                    geometryChanged = true
+                }
             }
             ToolIconButton(icon = Icons.Filled.OpenInFull) {
-                CropTransform.recycleIfNotProtected(workingBitmap, sourceBitmap)
-                workingBitmap = sourceBitmap
-                naturalW = sourceBitmap.width
-                naturalH = sourceBitmap.height
-                cropState.reset()
-                transformState.reset()
-                geometryChanged = false
+                safeRun {
+                    CropTransform.recycleIfNotProtected(workingBitmap, sourceBitmap)
+                    workingBitmap = sourceBitmap
+                    naturalW = sourceBitmap.width
+                    naturalH = sourceBitmap.height
+                    cropState.reset()
+                    transformState.reset()
+                    geometryChanged = false
+                }
             }
             ToolIconButton(
                 icon = Icons.Filled.Lock,
@@ -369,34 +389,39 @@ private fun ProCropPanel(
             verticalAlignment = Alignment.CenterVertically
         ) {
             ToolIconButton(icon = Icons.Filled.Flip, active = transformState.flippedH) {
-                val old = workingBitmap
-                workingBitmap = CropTransform.flipHorizontal(old)
-                CropTransform.recycleIfNotProtected(old, sourceBitmap)
-                transformState.toggleFlipH()
-                geometryChanged = true
+                safeRun {
+                    val old = workingBitmap
+                    workingBitmap = CropTransform.flipHorizontal(old)
+                    CropTransform.recycleIfNotProtected(old, sourceBitmap)
+                    transformState.toggleFlipH()
+                    geometryChanged = true
+                }
             }
             ToolIconButton(
                 icon = Icons.Filled.Flip,
                 active = transformState.flippedV,
                 rotationDegrees = 90f
             ) {
-                val old = workingBitmap
-                workingBitmap = CropTransform.flipVertical(old)
-                CropTransform.recycleIfNotProtected(old, sourceBitmap)
-                transformState.toggleFlipV()
-                geometryChanged = true
+                safeRun {
+                    val old = workingBitmap
+                    workingBitmap = CropTransform.flipVertical(old)
+                    CropTransform.recycleIfNotProtected(old, sourceBitmap)
+                    transformState.toggleFlipV()
+                    geometryChanged = true
+                }
             }
             ToolIconButton(icon = Icons.Filled.Close, tint = Color(0xFFE05353), onClick = onCancel)
             ToolIconButton(
                 icon = Icons.Filled.Check,
                 tint = Amber,
                 onClick = {
-                    val cl = cropState.left.roundToInt()
-                    val ct = cropState.top.roundToInt()
-                    val result = CropTransform.cropAndMask(
-                        source = workingBitmap,
-                        left = cl,
-                        top = ct,
+                    safeRun {
+                        val cl = cropState.left.roundToInt()
+                        val ct = cropState.top.roundToInt()
+                        val result = CropTransform.cropAndMask(
+                            source = workingBitmap,
+                            left = cl,
+                            top = ct,
                         width = cropState.width.roundToInt(),
                         height = cropState.height.roundToInt(),
                         oval = transformState.isOval
@@ -406,6 +431,7 @@ private fun ProCropPanel(
                     // `result` gets kept.
                     CropTransform.recycleIfNotProtected(workingBitmap, sourceBitmap)
                     onApply(result, cl, ct, geometryChanged)
+                    }
                 }
             )
         }
