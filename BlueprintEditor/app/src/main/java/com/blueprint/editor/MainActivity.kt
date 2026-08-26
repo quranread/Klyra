@@ -98,6 +98,8 @@ private fun EditorScreen(viewModel: BlueprintViewModel, onHome: () -> Unit) {
     var showClearConfirm by remember { mutableStateOf(false) }
     var pendingImageUri by remember { mutableStateOf<Uri?>(null) } // awaiting wipe-confirmation
     var showCrop by remember { mutableStateOf(false) }
+    var showRulers by remember { mutableStateOf(true) }
+    var showGrid by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val jsonFormat = remember { Json { prettyPrint = true } }
 
@@ -180,47 +182,51 @@ private fun EditorScreen(viewModel: BlueprintViewModel, onHome: () -> Unit) {
             if (currentBitmap == null) {
                 EmptyState(onPickImage = { pickImage.launch("image/*") })
             } else {
-                // Fit-to-container right after a fresh image loads — mirrors the
-                // original calling setZoom('fit') immediately after loadImage().
-                // With edge-to-edge enabled, the box's first reported size can
-                // land before window insets finish settling, so we keep re-fitting
-                // on every size change and only lock once two consecutive
-                // measurements agree — that's what "settled" means here.
                 var hasFit by remember(currentBitmap) { mutableStateOf(false) }
-                var lastMeasuredSize by remember(currentBitmap) { mutableStateOf<IntSize?>(null) }
+                var lastMeasuredSize by remember(currentBitmap) { mutableStateOf<androidx.compose.ui.geometry.Size?>(null) }
 
                 BlueprintCanvas(
                     viewModel = viewModel,
                     bitmap = currentBitmap,
                     transform = transform,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .then(
-                            if (!hasFit) {
-                                Modifier.onSizeChanged { size: IntSize ->
-                                    if (viewModel.naturalW > 0 && viewModel.naturalH > 0 &&
-                                        size.width > 0 && size.height > 0
-                                    ) {
-                                        if (size == lastMeasuredSize) {
-                                            hasFit = true
-                                        } else {
-                                            lastMeasuredSize = size
-                                            transform.fitToContainer(
-                                                size.width.toFloat(), size.height.toFloat(),
-                                                viewModel.naturalW, viewModel.naturalH
-                                            )
-                                        }
-                                    }
-                                }
-                            } else Modifier
-                        ),
-                    onContainerSizeChanged = { canvasSize = it }
+                    modifier = Modifier.fillMaxSize(),
+                    showRulers = showRulers,
+                    showGrid = showGrid,
+                    onContainerSizeChanged = { size ->
+                        canvasSize = size
+                        // Fit-to-container right after a fresh image loads — mirrors
+                        // the original calling setZoom('fit') immediately after
+                        // loadImage(). With edge-to-edge enabled, the first reported
+                        // size can land before window insets finish settling, so we
+                        // keep re-fitting on every size change and only lock once two
+                        // consecutive measurements agree — that's what "settled" means
+                        // here. This now reads from onContainerSizeChanged (the inner
+                        // canvas box's own size, excluding the ruler strips) rather
+                        // than a raw Modifier.onSizeChanged on the whole composable —
+                        // that outer size would include the ~22dp ruler strips once
+                        // showRulers is on, which very slightly overshoots the actual
+                        // drawable area and clips the fitted image against the rulers.
+                        if (!hasFit && viewModel.naturalW > 0 && viewModel.naturalH > 0 &&
+                            size.width > 0 && size.height > 0
+                        ) {
+                            if (size == lastMeasuredSize) {
+                                hasFit = true
+                            } else {
+                                lastMeasuredSize = size
+                                transform.fitToContainer(size.width, size.height, viewModel.naturalW, viewModel.naturalH)
+                            }
+                        }
+                    }
                 )
 
                 ZoomControls(
                     transform = transform,
                     containerSize = canvasSize,
                     onFit = { hasFit = false; lastMeasuredSize = null },
+                    showRulers = showRulers,
+                    onToggleRulers = { showRulers = !showRulers },
+                    showGrid = showGrid,
+                    onToggleGrid = { showGrid = !showGrid },
                     modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp)
                 )
             }
@@ -467,7 +473,16 @@ private fun RowScope.ToolBarItem(icon: androidx.compose.ui.graphics.vector.Image
 }
 
 @Composable
-private fun ZoomControls(transform: CanvasTransformState, containerSize: androidx.compose.ui.geometry.Size, onFit: () -> Unit, modifier: Modifier = Modifier) {
+private fun ZoomControls(
+    transform: CanvasTransformState,
+    containerSize: androidx.compose.ui.geometry.Size,
+    onFit: () -> Unit,
+    showRulers: Boolean,
+    onToggleRulers: () -> Unit,
+    showGrid: Boolean,
+    onToggleGrid: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     Column(
         modifier = modifier
             .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.9f), shape = MaterialTheme.shapes.medium)
@@ -484,6 +499,13 @@ private fun ZoomControls(transform: CanvasTransformState, containerSize: android
                 null,
                 tint = if (transform.zoomLocked) Cyan else LocalContentColor.current
             )
+        }
+        HorizontalDivider(modifier = Modifier.padding(vertical = 2.dp))
+        IconButton(onClick = onToggleRulers) {
+            Icon(Icons.Filled.Straighten, null, tint = if (showRulers) Amber else LocalContentColor.current)
+        }
+        IconButton(onClick = onToggleGrid) {
+            Icon(Icons.Filled.GridOn, null, tint = if (showGrid) Amber else LocalContentColor.current)
         }
     }
 }

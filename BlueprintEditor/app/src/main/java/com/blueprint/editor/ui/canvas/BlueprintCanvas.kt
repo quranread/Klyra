@@ -3,7 +3,11 @@ package com.blueprint.editor.ui.canvas
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -31,6 +35,13 @@ import kotlin.math.roundToInt
  * original markup — except here the "transform" is applied by drawing
  * everything at `natural * scale + pan` directly, rather than a CSS
  * transform on a child element, which keeps one gesture-owning layer.
+ *
+ * [showRulers]/[showGrid] add the Part-A precision aids: Figma/Photoshop-style
+ * pixel rulers along the top+left edges (adaptive tick spacing so labels
+ * never overlap at any zoom), and an optional full grid at the same spacing.
+ * Both are pure read-only overlays — they don't change hit-testing, pan/zoom,
+ * or placement math in any way, so they can be toggled freely with zero risk
+ * to anything built earlier.
  */
 @Composable
 fun BlueprintCanvas(
@@ -38,6 +49,8 @@ fun BlueprintCanvas(
     bitmap: ImageBitmap,
     transform: CanvasTransformState,
     modifier: Modifier = Modifier,
+    showRulers: Boolean = true,
+    showGrid: Boolean = false,
     onOpenSheet: (String) -> Unit = {},
     onContainerSizeChanged: (Size) -> Unit = {}
 ) {
@@ -94,75 +107,104 @@ fun BlueprintCanvas(
         )
     }
 
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(BgDeep)
-            .onSizeChanged {
-                containerSize = Size(it.width.toFloat(), it.height.toFloat())
-                onContainerSizeChanged(containerSize)
-            }
-            .pointerInput(viewModel.drawMode) {
-                detectBlueprintCanvasGestures(callbacks)
-            }
-    ) {
-        if (viewModel.naturalW > 0) {
-            // Image + annotations both drawn in the SAME Canvas, in raw pixels,
-            // with zero dp<->px conversion anywhere in this path. This is
-            // deliberate: an earlier version sized the Image composable via
-            // `.size(naturalWDp, naturalHDp)` + `graphicsLayer { scaleX = ... }`,
-            // which round-trips through Dp (px -> dp -> px again via density)
-            // for the base layout size before the visual scale is even applied.
-            // On some devices that round-trip doesn't cancel out cleanly, so the
-            // bitmap visually renders far smaller than `transform.scale` implies
-            // — while pan/zoom math (all pure px) still thinks it's the full
-            // size. That mismatch is exactly what shows up as "empty" canvas
-            // area that still responds to taps/magnifier with real image data.
-            // Drawing the bitmap with Canvas.drawImage(dstOffset/dstSize in px)
-            // guarantees the on-screen pixel size always equals
-            // naturalW*scale/naturalH*scale exactly — the same px space
-            // pointerInput, CanvasTransformState, and the annotation overlay
-            // already use, so there is no second unit system left to drift.
-            Canvas(modifier = Modifier.fillMaxSize()) {
-                val dstW = (viewModel.naturalW * transform.scale).roundToInt().coerceAtLeast(1)
-                val dstH = (viewModel.naturalH * transform.scale).roundToInt().coerceAtLeast(1)
-                drawImage(
-                    image = bitmap,
-                    dstOffset = IntOffset(transform.panX.roundToInt(), transform.panY.roundToInt()),
-                    dstSize = IntSize(dstW, dstH)
-                )
-                translate(transform.panX, transform.panY) {
-                    drawAnnotations(frame, textMeasurer)
-                }
-
-                // Full-canvas alignment guides through the line tool's first
-                // point, drawn in the OUTER (untranslated) coordinate space so
-                // they always span edge-to-edge regardless of pan/zoom. Fixes
-                // exactly the reported issue: placing point 1, then panning/
-                // zooming far away to place point 2 precisely (e.g. to keep a
-                // vertical measurement line truly vertical) loses all visual
-                // reference to point 1's X position once it scrolls off-screen,
-                // so the second tap drifts a few px and the "vertical" line
-                // ends up slightly diagonal. These dashed guides keep that
-                // reference visible everywhere on screen, the same way design
-                // tools like Figma show alignment guides.
-                viewModel.pendingLineStart?.let { start ->
-                    val screenX = start.x * transform.scale + transform.panX
-                    val screenY = start.y * transform.scale + transform.panY
-                    drawGuideLines(screenX, screenY, this.size)
-                }
-            }
-
-            if (livePoint != null && isTouchPlacing && liveLocal != null) {
-                MagnifierOverlay(
-                    bitmap = bitmap,
+    Column(modifier = modifier.fillMaxSize()) {
+        if (showRulers) {
+            Row(Modifier.fillMaxWidth()) {
+                RulerCorner()
+                TopRuler(
                     naturalW = viewModel.naturalW,
+                    scale = transform.scale,
+                    panX = transform.panX,
+                    liveNaturalX = livePoint?.x,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+        Row(Modifier.weight(1f).fillMaxWidth()) {
+            if (showRulers) {
+                LeftRuler(
                     naturalH = viewModel.naturalH,
                     scale = transform.scale,
-                    anchorLocal = liveLocal!!,
-                    point = livePoint!!,
-                    containerSizePx = containerSize
+                    panY = transform.panY,
+                    liveNaturalY = livePoint?.y,
+                    modifier = Modifier.fillMaxHeight()
                 )
+            }
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .background(BgDeep)
+                    .onSizeChanged {
+                        containerSize = Size(it.width.toFloat(), it.height.toFloat())
+                        onContainerSizeChanged(containerSize)
+                    }
+                    .pointerInput(viewModel.drawMode) {
+                        detectBlueprintCanvasGestures(callbacks)
+                    }
+            ) {
+                if (viewModel.naturalW > 0) {
+                    // Image + annotations both drawn in the SAME Canvas, in raw pixels,
+                    // with zero dp<->px conversion anywhere in this path. This is
+                    // deliberate: an earlier version sized the Image composable via
+                    // `.size(naturalWDp, naturalHDp)` + `graphicsLayer { scaleX = ... }`,
+                    // which round-trips through Dp (px -> dp -> px again via density)
+                    // for the base layout size before the visual scale is even applied.
+                    // On some devices that round-trip doesn't cancel out cleanly, so the
+                    // bitmap visually renders far smaller than `transform.scale` implies
+                    // — while pan/zoom math (all pure px) still thinks it's the full
+                    // size. That mismatch is exactly what shows up as "empty" canvas
+                    // area that still responds to taps/magnifier with real image data.
+                    // Drawing the bitmap with Canvas.drawImage(dstOffset/dstSize in px)
+                    // guarantees the on-screen pixel size always equals
+                    // naturalW*scale/naturalH*scale exactly — the same px space
+                    // pointerInput, CanvasTransformState, and the annotation overlay
+                    // already use, so there is no second unit system left to drift.
+                    Canvas(modifier = Modifier.fillMaxSize()) {
+                        val dstW = (viewModel.naturalW * transform.scale).roundToInt().coerceAtLeast(1)
+                        val dstH = (viewModel.naturalH * transform.scale).roundToInt().coerceAtLeast(1)
+                        drawImage(
+                            image = bitmap,
+                            dstOffset = IntOffset(transform.panX.roundToInt(), transform.panY.roundToInt()),
+                            dstSize = IntSize(dstW, dstH)
+                        )
+                        if (showGrid) {
+                            drawGridOverlay(viewModel.naturalW, viewModel.naturalH, transform.scale, transform.panX, transform.panY)
+                        }
+                        translate(transform.panX, transform.panY) {
+                            drawAnnotations(frame, textMeasurer)
+                        }
+
+                        // Full-canvas alignment guides through the line tool's first
+                        // point, drawn in the OUTER (untranslated) coordinate space so
+                        // they always span edge-to-edge regardless of pan/zoom. Fixes
+                        // exactly the reported issue: placing point 1, then panning/
+                        // zooming far away to place point 2 precisely (e.g. to keep a
+                        // vertical measurement line truly vertical) loses all visual
+                        // reference to point 1's X position once it scrolls off-screen,
+                        // so the second tap drifts a few px and the "vertical" line
+                        // ends up slightly diagonal. These dashed guides keep that
+                        // reference visible everywhere on screen, the same way design
+                        // tools like Figma show alignment guides.
+                        viewModel.pendingLineStart?.let { start ->
+                            val screenX = start.x * transform.scale + transform.panX
+                            val screenY = start.y * transform.scale + transform.panY
+                            drawGuideLines(screenX, screenY, this.size)
+                        }
+                    }
+
+                    if (livePoint != null && isTouchPlacing && liveLocal != null) {
+                        MagnifierOverlay(
+                            bitmap = bitmap,
+                            naturalW = viewModel.naturalW,
+                            naturalH = viewModel.naturalH,
+                            scale = transform.scale,
+                            anchorLocal = liveLocal!!,
+                            point = livePoint!!,
+                            containerSizePx = containerSize
+                        )
+                    }
+                }
             }
         }
     }
