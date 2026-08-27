@@ -100,6 +100,11 @@ private fun EditorScreen(viewModel: BlueprintViewModel, onHome: () -> Unit) {
     var showCrop by remember { mutableStateOf(false) }
     var showRulers by remember { mutableStateOf(true) }
     var showGrid by remember { mutableStateOf(false) }
+    // Moved up from inside the canvas Box so the new docked ZoomControlsBar
+    // (in bottomBar, a separate lambda/scope from the canvas content) can
+    // also trigger a re-fit via the same onFit callback.
+    var hasFit by remember(bitmap) { mutableStateOf(false) }
+    var lastMeasuredSize by remember(bitmap) { mutableStateOf<androidx.compose.ui.geometry.Size?>(null) }
     val context = LocalContext.current
     val jsonFormat = remember { Json { prettyPrint = true } }
 
@@ -167,7 +172,22 @@ private fun EditorScreen(viewModel: BlueprintViewModel, onHome: () -> Unit) {
                 onHome = onHome
             )
         },
-        bottomBar = { if (bitmap != null) ToolBar(viewModel, onCropClick = { showCrop = true }) }
+        bottomBar = {
+            if (bitmap != null) {
+                Column {
+                    ToolBar(viewModel, onCropClick = { showCrop = true })
+                    ZoomControlsBar(
+                        transform = transform,
+                        containerSize = canvasSize,
+                        onFit = { hasFit = false; lastMeasuredSize = null },
+                        showRulers = showRulers,
+                        onToggleRulers = { showRulers = !showRulers },
+                        showGrid = showGrid,
+                        onToggleGrid = { showGrid = !showGrid }
+                    )
+                }
+            }
+        }
     ) { padding ->
         Column(modifier = Modifier.padding(padding).fillMaxSize()) {
             if (bitmap != null) {
@@ -182,9 +202,6 @@ private fun EditorScreen(viewModel: BlueprintViewModel, onHome: () -> Unit) {
             if (currentBitmap == null) {
                 EmptyState(onPickImage = { pickImage.launch("image/*") })
             } else {
-                var hasFit by remember(currentBitmap) { mutableStateOf(false) }
-                var lastMeasuredSize by remember(currentBitmap) { mutableStateOf<androidx.compose.ui.geometry.Size?>(null) }
-
                 BlueprintCanvas(
                     viewModel = viewModel,
                     bitmap = currentBitmap,
@@ -217,17 +234,6 @@ private fun EditorScreen(viewModel: BlueprintViewModel, onHome: () -> Unit) {
                             }
                         }
                     }
-                )
-
-                ZoomControls(
-                    transform = transform,
-                    containerSize = canvasSize,
-                    onFit = { hasFit = false; lastMeasuredSize = null },
-                    showRulers = showRulers,
-                    onToggleRulers = { showRulers = !showRulers },
-                    showGrid = showGrid,
-                    onToggleGrid = { showGrid = !showGrid },
-                    modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp)
                 )
             }
 
@@ -473,21 +479,26 @@ private fun RowScope.ToolBarItem(icon: androidx.compose.ui.graphics.vector.Image
 }
 
 @Composable
-private fun ZoomControls(
+private fun ZoomControlsBar(
     transform: CanvasTransformState,
     containerSize: androidx.compose.ui.geometry.Size,
     onFit: () -> Unit,
     showRulers: Boolean,
     onToggleRulers: () -> Unit,
     showGrid: Boolean,
-    onToggleGrid: () -> Unit,
-    modifier: Modifier = Modifier
+    onToggleGrid: () -> Unit
 ) {
-    Column(
-        modifier = modifier
-            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.9f), shape = MaterialTheme.shapes.medium)
-            .padding(4.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+    // Docked in the bottomBar (below the Dot/Line/Box/Pan/Crop row) instead
+    // of floating over the canvas — floating meant it stayed pinned to the
+    // bottom-right of the *viewport* while the image scrolled underneath it,
+    // so it ended up covering whatever content happened to scroll there.
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surface)
+            .padding(horizontal = 8.dp, vertical = 2.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
     ) {
         IconButton(onClick = { transform.zoomStep(1.25f, containerSize.width, containerSize.height) }) { Icon(Icons.Filled.Add, null) }
         Text("${transform.zoomPercent}%", style = MaterialTheme.typography.labelSmall)
@@ -500,7 +511,7 @@ private fun ZoomControls(
                 tint = if (transform.zoomLocked) Cyan else LocalContentColor.current
             )
         }
-        HorizontalDivider(modifier = Modifier.padding(vertical = 2.dp))
+        VerticalDivider(modifier = Modifier.padding(horizontal = 2.dp).height(24.dp))
         IconButton(onClick = onToggleRulers) {
             Icon(Icons.Filled.Straighten, null, tint = if (showRulers) Amber else LocalContentColor.current)
         }
