@@ -46,6 +46,8 @@ fun CropScreen(
     bitmap: ImageBitmap,
     naturalW: Int,
     naturalH: Int,
+    title: String = "Crop Image",
+    confirmLabel: String = "Crop",
     onCancel: () -> Unit,
     onApply: (left: Int, top: Int, width: Int, height: Int) -> Unit
 ) {
@@ -56,7 +58,7 @@ fun CropScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Crop Image", fontWeight = FontWeight.Bold) },
+                title = { Text(title, fontWeight = FontWeight.Bold) },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = BgPanel),
                 navigationIcon = {
                     TextButton(onClick = onCancel) { Text("Cancel") }
@@ -73,7 +75,7 @@ fun CropScreen(
                             )
                         },
                         modifier = Modifier.padding(end = 8.dp)
-                    ) { Text("Crop") }
+                    ) { Text(confirmLabel) }
                 }
             )
         },

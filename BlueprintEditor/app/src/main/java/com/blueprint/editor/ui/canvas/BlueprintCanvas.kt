@@ -68,7 +68,9 @@ fun BlueprintCanvas(
         scale = transform.scale,
         pendingLineStart = viewModel.pendingLineStart,
         pendingBoxStart = viewModel.pendingBoxStart,
-        livePoint = livePoint
+        livePoint = livePoint,
+        measurementFrame = viewModel.measurementFrame,
+        hasActiveArea = viewModel.activeArea != null
     )
 
     val callbacks = remember(viewModel, transform) {
@@ -83,7 +85,9 @@ fun BlueprintCanvas(
                     scale = transform.scale,
                     pendingLineStart = viewModel.pendingLineStart,
                     pendingBoxStart = viewModel.pendingBoxStart,
-                    livePoint = livePoint
+                    livePoint = livePoint,
+                    measurementFrame = viewModel.measurementFrame,
+                    hasActiveArea = viewModel.activeArea != null
                 )
             },
             transform = transform,
@@ -171,6 +175,7 @@ fun BlueprintCanvas(
                         if (showGrid) {
                             drawGridOverlay(viewModel.naturalW, viewModel.naturalH, transform.scale, transform.panX, transform.panY)
                         }
+                        drawActiveAreaOverlay(frame, transform.panX, transform.panY)
                         translate(transform.panX, transform.panY) {
                             drawAnnotations(frame, textMeasurer)
                         }

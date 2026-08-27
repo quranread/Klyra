@@ -1,6 +1,7 @@
 package com.blueprint.editor.export
 
 import com.blueprint.editor.data.BlueprintElement
+import com.blueprint.editor.data.MeasurementFrame
 import com.blueprint.editor.data.angleDeg
 import com.blueprint.editor.data.boxMetrics
 import com.blueprint.editor.data.lengthPx
@@ -14,11 +15,24 @@ fun buildBlueprintJson(
     filename: String,
     naturalW: Int,
     naturalH: Int,
+    measurementFrame: MeasurementFrame,
     elements: List<BlueprintElement>
 ): BlueprintJson {
     val aspectRatio = if (naturalH != 0) {
         (Math.round((naturalW.toDouble() / naturalH) * 10000.0) / 10000.0)
     } else 0.0
+
+    val usesActiveArea = measurementFrame.originX != 0 || measurementFrame.originY != 0 ||
+        measurementFrame.width != naturalW || measurementFrame.height != naturalH
+    val measurementReference = if (usesActiveArea) {
+        "All left/right/top/bottom distances below are measured from a marked Active Area " +
+            "(${measurementFrame.width}x${measurementFrame.height}px, starting ${measurementFrame.originX}px " +
+            "from the full image's left edge and ${measurementFrame.originY}px from its top edge) — " +
+            "NOT from the full image's own edges. The image itself was not cropped; every element's " +
+            "raw position is still stored relative to the full original image."
+    } else {
+        "All left/right/top/bottom distances below are measured from the full image's own edges."
+    }
 
     return BlueprintJson(
         image = ImageInfoJson(
@@ -28,11 +42,12 @@ fun buildBlueprintJson(
             aspectRatio = aspectRatio
         ),
         createdAt = Instant.now().toString(),
-        elements = elements.map { it.toElementJson(naturalW, naturalH) }
+        measurementReference = measurementReference,
+        elements = elements.map { it.toElementJson(measurementFrame) }
     )
 }
 
-private fun BlueprintElement.toElementJson(naturalW: Int, naturalH: Int): ElementJson =
+private fun BlueprintElement.toElementJson(frame: MeasurementFrame): ElementJson =
     when (this) {
         is BlueprintElement.Line -> ElementJson(
             id = id,
@@ -44,7 +59,7 @@ private fun BlueprintElement.toElementJson(naturalW: Int, naturalH: Int): Elemen
             notes = notes.ifBlank { null }
         )
         is BlueprintElement.Dot -> {
-            val box = boxMetrics(naturalW, naturalH)
+            val box = boxMetrics(frame)
             ElementJson(
                 id = id,
                 kind = "dot",

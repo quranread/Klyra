@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import com.blueprint.editor.data.Anchor
 import com.blueprint.editor.data.BlueprintElement
 import com.blueprint.editor.data.ElementType
+import com.blueprint.editor.data.MeasurementFrame
 import com.blueprint.editor.data.angleDeg
 import com.blueprint.editor.data.boxMetrics
 import com.blueprint.editor.data.lengthPx
@@ -46,6 +47,7 @@ fun EditSheet(
     element: BlueprintElement,
     naturalW: Int,
     naturalH: Int,
+    measurementFrame: MeasurementFrame,
     onUpdate: (BlueprintElement) -> Unit,
     onDelete: () -> Unit,
     onDismiss: () -> Unit
@@ -77,7 +79,7 @@ fun EditSheet(
             }
 
             when (element) {
-                is BlueprintElement.Dot -> DotFields(element, naturalW, naturalH, onUpdate)
+                is BlueprintElement.Dot -> DotFields(element, naturalW, naturalH, measurementFrame, onUpdate)
                 is BlueprintElement.Line -> LineFields(element, onUpdate)
             }
 
@@ -93,6 +95,7 @@ private fun DotFields(
     el: BlueprintElement.Dot,
     naturalW: Int,
     naturalH: Int,
+    measurementFrame: MeasurementFrame,
     onUpdate: (BlueprintElement) -> Unit
 ) {
     var widthText by remember(el.id) { mutableStateOf(if (el.width > 0) el.width.toString() else "") }
@@ -164,7 +167,14 @@ private fun DotFields(
 
     // Live edge distances — recomputed from the *current* el, which already
     // reflects the latest width/height/anchor by the time this recomposes.
-    val box = el.boxMetrics(naturalW, naturalH)
+    // Measured against measurementFrame: the whole image by default, or the
+    // Part-C Active Area if one has been marked out (non-destructively).
+    val box = el.boxMetrics(measurementFrame)
+    val edgesLabel = if (measurementFrame.isFullImage && measurementFrame.width == naturalW && measurementFrame.height == naturalH) {
+        "Edges (from image bounds)"
+    } else {
+        "Edges (from marked Active Area, not full image)"
+    }
     val edgesText = buildString {
         append("Left: ${box.left}px   Right: ${box.right}px\n")
         append("Top: ${box.top}px   Bottom: ${box.bottom}px")
@@ -172,7 +182,7 @@ private fun DotFields(
             append("\nCenter: X ${box.centerX}px, Y ${box.centerY}px")
         }
     }
-    ReadonlyBlock("Edges (from image bounds)", edgesText)
+    ReadonlyBlock(edgesLabel, edgesText)
 
     OutlinedTextField(
         value = notes,

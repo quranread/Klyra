@@ -30,6 +30,22 @@ class BlueprintViewModel : ViewModel() {
     var imageUri by mutableStateOf<String?>(null)
         private set
 
+    // ---- Part C: Active Area (non-destructive measurement frame) ----
+    /** Null = measuring against the whole image. Non-null = a marked-out sub-rect (in full-image px) that all edge-distance reporting is measured against instead — see [MeasurementFrame]'s doc for why this never touches elements/crop. */
+    var activeArea by mutableStateOf<MeasurementFrame?>(null)
+        private set
+
+    val measurementFrame: MeasurementFrame
+        get() = activeArea ?: MeasurementFrame.fullImage(naturalW, naturalH)
+
+    fun setActiveArea(left: Int, top: Int, width: Int, height: Int) {
+        activeArea = MeasurementFrame(left, top, width, height)
+    }
+
+    fun clearActiveArea() {
+        activeArea = null
+    }
+
     // ---- Elements ----
     val elements = mutableStateListOf<BlueprintElement>()
     private val redoStack = mutableStateListOf<BlueprintElement>()
@@ -67,6 +83,7 @@ class BlueprintViewModel : ViewModel() {
         pendingLineStart = null
         pendingBoxStart = null
         drawMode = DrawMode.DOT
+        activeArea = null
     }
 
     /**
@@ -101,6 +118,7 @@ class BlueprintViewModel : ViewModel() {
         }
         elements.clear()
         elements.addAll(kept)
+        activeArea = null // its coordinates were relative to the old, uncropped image
         redoStack.clear()
         naturalW = newW
         naturalH = newH

@@ -13,6 +13,7 @@ import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import com.blueprint.editor.data.BlueprintElement
+import com.blueprint.editor.data.MeasurementFrame
 import com.blueprint.editor.data.NaturalPoint
 import com.blueprint.editor.data.boxMetrics
 import com.blueprint.editor.data.lengthPx
@@ -23,6 +24,7 @@ private val AMBER = Color(0xFFFFB627)
 private val CYAN = Color(0xFF4FD1C5)
 private val DEEP = Color(0xFF0A1F33)
 private val SNAP_GREEN = Color(0xFF4ADE80)
+private val ACTIVE_AREA_GREEN = Color(0xFF4ADE80)
 
 /**
  * Everything needed to paint the current frame of the canvas overlay —
@@ -37,7 +39,11 @@ data class AnnotationFrame(
     val pendingLineStart: NaturalPoint?,
     val pendingBoxStart: NaturalPoint?,
     /** Live finger position while dragging to place, in natural px — drives the line/box preview. */
-    val livePoint: NaturalPoint?
+    val livePoint: NaturalPoint?,
+    /** Part C: the reporting frame edge distances are measured against — used only for [drawDimensionLines]'s displayed numbers, never for hit-testing/placement. */
+    val measurementFrame: MeasurementFrame,
+    /** Whether an Active Area is actually set (vs. defaulting to the whole image) — drives the persistent boundary outline. */
+    val hasActiveArea: Boolean
 )
 
 /** Screen-space bounds of the selected element's quick-delete badge, for hit-testing taps on it. */
@@ -178,14 +184,24 @@ private fun DrawScope.drawQuickDeleteBadge(center: Offset) {
     drawCircle(DEEP, radius = 11f, center = center, style = Stroke(width = 2f))
 }
 
-/** Distance-line + label from each edge of the sized box to the corresponding image edge. Port of drawDimensionLines(). */
+/** Distance-line + label from each edge of the sized box to the corresponding measurement-frame edge. Port of drawDimensionLines(), extended for Part C's Active Area. */
 private fun DrawScope.drawDimensionLines(el: BlueprintElement.Dot, frame: AnnotationFrame, textMeasurer: TextMeasurer) {
     val s = frame.scale
+    // Absolute screen position of the box itself never changes with the
+    // measurement frame — only which numbers get printed on the guide lines,
+    // and where those guide lines terminate (the frame's edge, not
+    // necessarily the full image's edge), do.
     val box = el.boxMetrics(frame.naturalW, frame.naturalH)
+    val reportBox = el.boxMetrics(frame.measurementFrame)
     val bx1 = box.x1 * s; val by1 = box.y1 * s
     val bx2 = box.x2 * s; val by2 = box.y2 * s
     val midX = (bx1 + bx2) / 2f; val midY = (by1 + by2) / 2f
-    val canvasW = frame.naturalW * s; val canvasH = frame.naturalH * s
+
+    val mf = frame.measurementFrame
+    val frameLeftPx = mf.originX * s
+    val frameTopPx = mf.originY * s
+    val frameRightPx = (mf.originX + mf.width) * s
+    val frameBottomPx = (mf.originY + mf.height) * s
 
     if (box.w > 0 && box.h > 0) {
         drawRect(
@@ -199,17 +215,44 @@ private fun DrawScope.drawDimensionLines(el: BlueprintElement.Dot, frame: Annota
 
     val dimColor = CYAN.copy(alpha = 0.55f)
     // left
-    drawLine(dimColor, Offset(0f, midY), Offset(bx1, midY), strokeWidth = 1f)
-    drawChipLabel("<- left ${box.left}px", Offset(max(4f, bx1 / 2f - 30f), midY - 18f), textMeasurer, filled = false)
+    drawLine(dimColor, Offset(frameLeftPx, midY), Offset(bx1, midY), strokeWidth = 1f)
+    drawChipLabel("<- left ${reportBox.left}px", Offset(max(4f, (frameLeftPx + bx1) / 2f - 30f), midY - 18f), textMeasurer, filled = false)
     // right
-    drawLine(dimColor, Offset(bx2, midY), Offset(canvasW, midY), strokeWidth = 1f)
-    drawChipLabel("right ${box.right}px ->", Offset(bx2 + (canvasW - bx2) / 2f - 34f, midY - 18f), textMeasurer, filled = false)
+    drawLine(dimColor, Offset(bx2, midY), Offset(frameRightPx, midY), strokeWidth = 1f)
+    drawChipLabel("right ${reportBox.right}px ->", Offset(bx2 + (frameRightPx - bx2) / 2f - 34f, midY - 18f), textMeasurer, filled = false)
     // top
-    drawLine(dimColor, Offset(midX, 0f), Offset(midX, by1), strokeWidth = 1f)
-    drawChipLabel("^ top ${box.top}px", Offset(midX + 6f, max(2f, by1 / 2f - 8f)), textMeasurer, filled = false)
+    drawLine(dimColor, Offset(midX, frameTopPx), Offset(midX, by1), strokeWidth = 1f)
+    drawChipLabel("^ top ${reportBox.top}px", Offset(midX + 6f, max(2f, (frameTopPx + by1) / 2f - 8f)), textMeasurer, filled = false)
     // bottom
-    drawLine(dimColor, Offset(midX, by2), Offset(midX, canvasH), strokeWidth = 1f)
-    drawChipLabel("bottom ${box.bottom}px v", Offset(midX + 6f, by2 + (canvasH - by2) / 2f - 8f), textMeasurer, filled = false)
+    drawLine(dimColor, Offset(midX, by2), Offset(midX, frameBottomPx), strokeWidth = 1f)
+    drawChipLabel("bottom ${reportBox.bottom}px v", Offset(midX + 6f, by2 + (frameBottomPx - by2) / 2f - 8f), textMeasurer, filled = false)
+}
+
+/** Persistent outline showing the Part-C Active Area boundary, with the excluded margins dimmed — always visible (not just while an element is selected) so it's never ambiguous which frame numbers are measured against. */
+fun DrawScope.drawActiveAreaOverlay(frame: AnnotationFrame, panX: Float, panY: Float) {
+    if (!frame.hasActiveArea) return
+    val s = frame.scale
+    val mf = frame.measurementFrame
+    val left = mf.originX * s + panX
+    val top = mf.originY * s + panY
+    val right = (mf.originX + mf.width) * s + panX
+    val bottom = (mf.originY + mf.height) * s + panY
+    val fullLeft = panX
+    val fullTop = panY
+    val fullRight = frame.naturalW * s + panX
+    val fullBottom = frame.naturalH * s + panY
+
+    val dim = Color.Black.copy(alpha = 0.45f)
+    drawRect(dim, topLeft = Offset(fullLeft, fullTop), size = androidx.compose.ui.geometry.Size(fullRight - fullLeft, top - fullTop))
+    drawRect(dim, topLeft = Offset(fullLeft, bottom), size = androidx.compose.ui.geometry.Size(fullRight - fullLeft, fullBottom - bottom))
+    drawRect(dim, topLeft = Offset(fullLeft, top), size = androidx.compose.ui.geometry.Size(left - fullLeft, bottom - top))
+    drawRect(dim, topLeft = Offset(right, top), size = androidx.compose.ui.geometry.Size(fullRight - right, bottom - top))
+    drawRect(
+        ACTIVE_AREA_GREEN,
+        topLeft = Offset(left, top),
+        size = androidx.compose.ui.geometry.Size(right - left, bottom - top),
+        style = Stroke(width = 2f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 5f)))
+    )
 }
 
 private fun DrawScope.drawChipLabel(

@@ -22,7 +22,18 @@ data class BoxMetrics(
  * image's natural size, honoring the dot's [Anchor] the same way the web
  * version's `getBox(el)` does.
  */
-fun BlueprintElement.Dot.boxMetrics(naturalW: Int, naturalH: Int): BoxMetrics {
+fun BlueprintElement.Dot.boxMetrics(naturalW: Int, naturalH: Int): BoxMetrics =
+    boxMetrics(MeasurementFrame.fullImage(naturalW, naturalH))
+
+/**
+ * Same as [boxMetrics], but reports left/top/right/bottom/center relative to
+ * [frame] instead of the full image — this is the one place Part C's
+ * "Active Area" actually changes any numbers. The box's own x1/y1/x2/y2
+ * (this element's true position) are computed exactly as before, in full
+ * absolute image pixels; only the distances-to-edges below get re-based to
+ * [frame]'s origin/size.
+ */
+fun BlueprintElement.Dot.boxMetrics(frame: MeasurementFrame): BoxMetrics {
     val w = width
     val h = height
     var x1: Double
@@ -44,12 +55,12 @@ fun BlueprintElement.Dot.boxMetrics(naturalW: Int, naturalH: Int): BoxMetrics {
     val ry2 = ry1 + h
     return BoxMetrics(
         x1 = rx1, y1 = ry1, x2 = rx2, y2 = ry2, w = w, h = h,
-        left = rx1,
-        top = ry1,
-        right = naturalW - rx2,
-        bottom = naturalH - ry2,
-        centerX = round(rx1 + w / 2.0).toInt(),
-        centerY = round(ry1 + h / 2.0).toInt()
+        left = rx1 - frame.originX,
+        top = ry1 - frame.originY,
+        right = (frame.originX + frame.width) - rx2,
+        bottom = (frame.originY + frame.height) - ry2,
+        centerX = round(rx1 + w / 2.0).toInt() - frame.originX,
+        centerY = round(ry1 + h / 2.0).toInt() - frame.originY
     )
 }
 

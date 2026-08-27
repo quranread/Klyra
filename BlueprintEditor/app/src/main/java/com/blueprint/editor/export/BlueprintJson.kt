@@ -9,6 +9,14 @@ data class BlueprintJson(
     val image: ImageInfoJson,
     @SerialName("created_at") val createdAt: String,
     @SerialName("coordinate_system") val coordinateSystem: String = "original_pixels_top_left_origin",
+    /**
+     * Part C: plain-English note on what left/right/top/bottom distances
+     * below are actually measured against — the whole image (default), or a
+     * marked-out Active Area (e.g. excluding a status bar / nav bar strip)
+     * without any pixels having been cropped. Every element's own absolute
+     * position is always still relative to the full original image.
+     */
+    @SerialName("measurement_reference") val measurementReference: String,
     val elements: List<ElementJson>
 )
 
