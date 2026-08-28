@@ -98,9 +98,13 @@ private fun EditorScreen(viewModel: BlueprintViewModel, onHome: () -> Unit) {
     var showClearConfirm by remember { mutableStateOf(false) }
     var pendingImageUri by remember { mutableStateOf<Uri?>(null) } // awaiting wipe-confirmation
     var showCrop by remember { mutableStateOf(false) }
-    var showActiveArea by remember { mutableStateOf(false) }
     var showRulers by remember { mutableStateOf(true) }
     var showGrid by remember { mutableStateOf(false) }
+    // Moved up from inside the canvas Box so the new docked ZoomControlsBar
+    // (in bottomBar, a separate lambda/scope from the canvas content) can
+    // also trigger a re-fit via the same onFit callback.
+    var hasFit by remember(bitmap) { mutableStateOf(false) }
+    var lastMeasuredSize by remember(bitmap) { mutableStateOf<androidx.compose.ui.geometry.Size?>(null) }
     val context = LocalContext.current
     val jsonFormat = remember { Json { prettyPrint = true } }
 
@@ -130,7 +134,7 @@ private fun EditorScreen(viewModel: BlueprintViewModel, onHome: () -> Unit) {
         ActivityResultContracts.CreateDocument("application/json")
     ) { uri ->
         if (uri != null) {
-            val doc = buildBlueprintJson(viewModel.filename, viewModel.naturalW, viewModel.naturalH, viewModel.measurementFrame, viewModel.elements)
+            val doc = buildBlueprintJson(viewModel.filename, viewModel.naturalW, viewModel.naturalH, viewModel.elements)
             val text = jsonFormat.encodeToString(doc)
             context.contentResolver.openOutputStream(uri)?.use { it.write(text.toByteArray()) }
         }
@@ -165,13 +169,33 @@ private fun EditorScreen(viewModel: BlueprintViewModel, onHome: () -> Unit) {
                 onExportPng = { exportPngLauncher.launch("${baseName()}_annotated.png") },
                 onClearAll = { showClearConfirm = true },
                 onCrop = { showCrop = true },
-                onSetActiveArea = { showActiveArea = true },
-                onClearActiveArea = { viewModel.clearActiveArea() },
-                hasActiveArea = viewModel.activeArea != null,
                 onHome = onHome
             )
         },
-        bottomBar = { if (bitmap != null) ToolBar(viewModel, onCropClick = { showCrop = true }) }
+        bottomBar = {
+            if (bitmap != null) {
+                // FIX: the whole group now gets navigation-bar clearance ONCE,
+                // at this outer Column — not from NavigationBar's own internal
+                // inset handling, which only protected itself and let
+                // ZoomControlsBar (a plain Row below it, with no inset
+                // awareness of its own) get pushed down into the system
+                // gesture-navigation strip. ToolBar is now the LAST/bottom-most
+                // element again (matches the original, familiar layout), with
+                // ZoomControlsBar docked just above it.
+                Column(modifier = Modifier.navigationBarsPadding()) {
+                    ZoomControlsBar(
+                        transform = transform,
+                        containerSize = canvasSize,
+                        onFit = { hasFit = false; lastMeasuredSize = null },
+                        showRulers = showRulers,
+                        onToggleRulers = { showRulers = !showRulers },
+                        showGrid = showGrid,
+                        onToggleGrid = { showGrid = !showGrid }
+                    )
+                    ToolBar(viewModel, onCropClick = { showCrop = true })
+                }
+            }
+        }
     ) { padding ->
         Column(modifier = Modifier.padding(padding).fillMaxSize()) {
             if (bitmap != null) {
@@ -186,9 +210,6 @@ private fun EditorScreen(viewModel: BlueprintViewModel, onHome: () -> Unit) {
             if (currentBitmap == null) {
                 EmptyState(onPickImage = { pickImage.launch("image/*") })
             } else {
-                var hasFit by remember(currentBitmap) { mutableStateOf(false) }
-                var lastMeasuredSize by remember(currentBitmap) { mutableStateOf<androidx.compose.ui.geometry.Size?>(null) }
-
                 BlueprintCanvas(
                     viewModel = viewModel,
                     bitmap = currentBitmap,
@@ -222,17 +243,6 @@ private fun EditorScreen(viewModel: BlueprintViewModel, onHome: () -> Unit) {
                         }
                     }
                 )
-
-                ZoomControls(
-                    transform = transform,
-                    containerSize = canvasSize,
-                    onFit = { hasFit = false; lastMeasuredSize = null },
-                    showRulers = showRulers,
-                    onToggleRulers = { showRulers = !showRulers },
-                    showGrid = showGrid,
-                    onToggleGrid = { showGrid = !showGrid },
-                    modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp)
-                )
             }
 
             val selectedElement = viewModel.elementById(viewModel.selectedId)
@@ -241,7 +251,6 @@ private fun EditorScreen(viewModel: BlueprintViewModel, onHome: () -> Unit) {
                     element = selectedElement,
                     naturalW = viewModel.naturalW,
                     naturalH = viewModel.naturalH,
-                    measurementFrame = viewModel.measurementFrame,
                     onUpdate = { viewModel.updateElement(it) },
                     onDelete = {
                         viewModel.deleteElement(selectedElement.id)
@@ -265,7 +274,7 @@ private fun EditorScreen(viewModel: BlueprintViewModel, onHome: () -> Unit) {
 
             if (showInstructions) {
                 AiInstructionsSheet(
-                    text = buildAiInstructions(viewModel.filename, viewModel.naturalW, viewModel.naturalH, viewModel.measurementFrame, viewModel.elements),
+                    text = buildAiInstructions(viewModel.filename, viewModel.naturalW, viewModel.naturalH, viewModel.elements),
                     onDismiss = { showInstructions = false }
                 )
             }
@@ -350,30 +359,6 @@ private fun EditorScreen(viewModel: BlueprintViewModel, onHome: () -> Unit) {
             )
         }
     }
-
-    // Part C: Active Area — a non-destructive measurement frame. Deliberately
-    // reuses CropScreen's rectangle-selection UI (same handles/aspect-chips/
-    // grid the person already knows from Crop) but Apply here never touches
-    // the bitmap or any element's coordinates — it only records the rect via
-    // viewModel.setActiveArea(), which changes what every edge-distance
-    // number is measured against from here on. See MeasurementFrame's doc.
-    if (showActiveArea) {
-        val currentBitmap = bitmap
-        if (currentBitmap != null) {
-            com.blueprint.editor.ui.crop.CropScreen(
-                bitmap = currentBitmap,
-                naturalW = viewModel.naturalW,
-                naturalH = viewModel.naturalH,
-                title = "Set Active Area",
-                confirmLabel = "Set Area",
-                onCancel = { showActiveArea = false },
-                onApply = { left, top, width, height ->
-                    viewModel.setActiveArea(left, top, width, height)
-                    showActiveArea = false
-                }
-            )
-        }
-    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -389,9 +374,6 @@ private fun EditorTopBar(
     onExportPng: () -> Unit,
     onClearAll: () -> Unit,
     onCrop: () -> Unit,
-    onSetActiveArea: () -> Unit,
-    onClearActiveArea: () -> Unit,
-    hasActiveArea: Boolean,
     onHome: () -> Unit
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
@@ -469,18 +451,6 @@ private fun EditorTopBar(
                         onClick = { menuExpanded = false; onCrop() }
                     )
                     DropdownMenuItem(
-                        text = { Text(if (hasActiveArea) "Change Active Area" else "Set Active Area") },
-                        leadingIcon = { Icon(Icons.Filled.CropFree, contentDescription = null, tint = if (hasActiveArea) com.blueprint.editor.ui.theme.Amber else LocalContentColor.current) },
-                        onClick = { menuExpanded = false; onSetActiveArea() }
-                    )
-                    if (hasActiveArea) {
-                        DropdownMenuItem(
-                            text = { Text("Clear Active Area") },
-                            leadingIcon = { Icon(Icons.Filled.Close, contentDescription = null) },
-                            onClick = { menuExpanded = false; onClearActiveArea() }
-                        )
-                    }
-                    DropdownMenuItem(
                         text = { Text("Clear All") },
                         leadingIcon = { Icon(Icons.Filled.DeleteSweep, contentDescription = null) },
                         enabled = viewModel.hasElements,
@@ -494,7 +464,16 @@ private fun EditorTopBar(
 
 @Composable
 private fun ToolBar(viewModel: BlueprintViewModel, onCropClick: () -> Unit) {
-    NavigationBar(containerColor = com.blueprint.editor.ui.theme.BgPanel3) {
+    // windowInsets = WindowInsets(0) here on purpose: the outer bottomBar
+    // Column (in EditorScreen) now applies .navigationBarsPadding() ONCE for
+    // the whole ZoomControlsBar + ToolBar group. If NavigationBar also
+    // applied its own default bottom inset on top of that, the group would
+    // get double bottom padding (an odd empty gap above the system bar)
+    // instead of sitting flush against it like before.
+    NavigationBar(
+        containerColor = com.blueprint.editor.ui.theme.BgPanel3,
+        windowInsets = WindowInsets(0, 0, 0, 0)
+    ) {
         ToolBarItem(Icons.Filled.RadioButtonChecked, "Dot", viewModel.drawMode == DrawMode.DOT) { viewModel.selectDrawMode(DrawMode.DOT) }
         ToolBarItem(Icons.AutoMirrored.Filled.TrendingFlat, "Line", viewModel.drawMode == DrawMode.LINE) { viewModel.selectDrawMode(DrawMode.LINE) }
         ToolBarItem(Icons.Filled.CropSquare, "Box", viewModel.drawMode == DrawMode.BOX) { viewModel.selectDrawMode(DrawMode.BOX) }
@@ -517,21 +496,26 @@ private fun RowScope.ToolBarItem(icon: androidx.compose.ui.graphics.vector.Image
 }
 
 @Composable
-private fun ZoomControls(
+private fun ZoomControlsBar(
     transform: CanvasTransformState,
     containerSize: androidx.compose.ui.geometry.Size,
     onFit: () -> Unit,
     showRulers: Boolean,
     onToggleRulers: () -> Unit,
     showGrid: Boolean,
-    onToggleGrid: () -> Unit,
-    modifier: Modifier = Modifier
+    onToggleGrid: () -> Unit
 ) {
-    Column(
-        modifier = modifier
-            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.9f), shape = MaterialTheme.shapes.medium)
-            .padding(4.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+    // Docked in the bottomBar (below the Dot/Line/Box/Pan/Crop row) instead
+    // of floating over the canvas — floating meant it stayed pinned to the
+    // bottom-right of the *viewport* while the image scrolled underneath it,
+    // so it ended up covering whatever content happened to scroll there.
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surface)
+            .padding(horizontal = 8.dp, vertical = 2.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
     ) {
         IconButton(onClick = { transform.zoomStep(1.25f, containerSize.width, containerSize.height) }) { Icon(Icons.Filled.Add, null) }
         Text("${transform.zoomPercent}%", style = MaterialTheme.typography.labelSmall)
@@ -544,7 +528,7 @@ private fun ZoomControls(
                 tint = if (transform.zoomLocked) Cyan else LocalContentColor.current
             )
         }
-        HorizontalDivider(modifier = Modifier.padding(vertical = 2.dp))
+        VerticalDivider(modifier = Modifier.padding(horizontal = 2.dp).height(24.dp))
         IconButton(onClick = onToggleRulers) {
             Icon(Icons.Filled.Straighten, null, tint = if (showRulers) Amber else LocalContentColor.current)
         }
