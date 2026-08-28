@@ -134,7 +134,7 @@ private fun EditorScreen(viewModel: BlueprintViewModel, onHome: () -> Unit) {
         ActivityResultContracts.CreateDocument("application/json")
     ) { uri ->
         if (uri != null) {
-            val doc = buildBlueprintJson(viewModel.filename, viewModel.naturalW, viewModel.naturalH, viewModel.elements)
+            val doc = buildBlueprintJson(viewModel.filename, viewModel.naturalW, viewModel.naturalH, viewModel.measurementFrame, viewModel.elements)
             val text = jsonFormat.encodeToString(doc)
             context.contentResolver.openOutputStream(uri)?.use { it.write(text.toByteArray()) }
         }
@@ -251,6 +251,7 @@ private fun EditorScreen(viewModel: BlueprintViewModel, onHome: () -> Unit) {
                     element = selectedElement,
                     naturalW = viewModel.naturalW,
                     naturalH = viewModel.naturalH,
+                    measurementFrame = viewModel.measurementFrame,
                     onUpdate = { viewModel.updateElement(it) },
                     onDelete = {
                         viewModel.deleteElement(selectedElement.id)
@@ -274,7 +275,7 @@ private fun EditorScreen(viewModel: BlueprintViewModel, onHome: () -> Unit) {
 
             if (showInstructions) {
                 AiInstructionsSheet(
-                    text = buildAiInstructions(viewModel.filename, viewModel.naturalW, viewModel.naturalH, viewModel.elements),
+                    text = buildAiInstructions(viewModel.filename, viewModel.naturalW, viewModel.naturalH, viewModel.measurementFrame, viewModel.elements),
                     onDismiss = { showInstructions = false }
                 )
             }
