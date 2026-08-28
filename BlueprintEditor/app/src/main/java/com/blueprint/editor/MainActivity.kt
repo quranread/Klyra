@@ -98,6 +98,7 @@ private fun EditorScreen(viewModel: BlueprintViewModel, onHome: () -> Unit) {
     var showClearConfirm by remember { mutableStateOf(false) }
     var pendingImageUri by remember { mutableStateOf<Uri?>(null) } // awaiting wipe-confirmation
     var showCrop by remember { mutableStateOf(false) }
+    var showActiveArea by remember { mutableStateOf(false) }
     var showRulers by remember { mutableStateOf(true) }
     var showGrid by remember { mutableStateOf(false) }
     // Moved up from inside the canvas Box so the new docked ZoomControlsBar
@@ -169,6 +170,9 @@ private fun EditorScreen(viewModel: BlueprintViewModel, onHome: () -> Unit) {
                 onExportPng = { exportPngLauncher.launch("${baseName()}_annotated.png") },
                 onClearAll = { showClearConfirm = true },
                 onCrop = { showCrop = true },
+                onSetActiveArea = { showActiveArea = true },
+                onClearActiveArea = { viewModel.clearActiveArea() },
+                hasActiveArea = viewModel.activeArea != null,
                 onHome = onHome
             )
         },
@@ -360,6 +364,31 @@ private fun EditorScreen(viewModel: BlueprintViewModel, onHome: () -> Unit) {
             )
         }
     }
+
+    // Part C: Active Area — a non-destructive measurement frame. Deliberately
+    // reuses CropScreen's rectangle-selection UI (same handles/aspect-chips/
+    // grid) but Apply here never touches the bitmap or any element's
+    // coordinates — it only records the rect via viewModel.setActiveArea(),
+    // which changes what every edge-distance number is measured against
+    // from here on. See MeasurementFrame's doc for why this is always safe
+    // to set/change/clear.
+    if (showActiveArea) {
+        val currentBitmap = bitmap
+        if (currentBitmap != null) {
+            com.blueprint.editor.ui.crop.CropScreen(
+                bitmap = currentBitmap,
+                naturalW = viewModel.naturalW,
+                naturalH = viewModel.naturalH,
+                title = "Set Active Area",
+                confirmLabel = "Set Area",
+                onCancel = { showActiveArea = false },
+                onApply = { left, top, width, height ->
+                    viewModel.setActiveArea(left, top, width, height)
+                    showActiveArea = false
+                }
+            )
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -375,6 +404,9 @@ private fun EditorTopBar(
     onExportPng: () -> Unit,
     onClearAll: () -> Unit,
     onCrop: () -> Unit,
+    onSetActiveArea: () -> Unit,
+    onClearActiveArea: () -> Unit,
+    hasActiveArea: Boolean,
     onHome: () -> Unit
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
@@ -451,6 +483,24 @@ private fun EditorTopBar(
                         leadingIcon = { Icon(Icons.Filled.Crop, contentDescription = null) },
                         onClick = { menuExpanded = false; onCrop() }
                     )
+                    DropdownMenuItem(
+                        text = { Text(if (hasActiveArea) "Change Active Area" else "Set Active Area") },
+                        leadingIcon = {
+                            Icon(
+                                Icons.Filled.CropFree,
+                                contentDescription = null,
+                                tint = if (hasActiveArea) com.blueprint.editor.ui.theme.Amber else LocalContentColor.current
+                            )
+                        },
+                        onClick = { menuExpanded = false; onSetActiveArea() }
+                    )
+                    if (hasActiveArea) {
+                        DropdownMenuItem(
+                            text = { Text("Clear Active Area") },
+                            leadingIcon = { Icon(Icons.Filled.Close, contentDescription = null) },
+                            onClick = { menuExpanded = false; onClearActiveArea() }
+                        )
+                    }
                     DropdownMenuItem(
                         text = { Text("Clear All") },
                         leadingIcon = { Icon(Icons.Filled.DeleteSweep, contentDescription = null) },
