@@ -268,8 +268,7 @@ private fun EditorScreen(viewModel: BlueprintViewModel, onHome: () -> Unit) {
                 ElementsListSheet(
                     elements = viewModel.elements,
                     selectedId = viewModel.selectedId,
-                    naturalW = viewModel.naturalW,
-                    naturalH = viewModel.naturalH,
+                    measurementFrame = viewModel.measurementFrame,
                     onSelect = { id -> viewModel.openElement(id); showList = false },
                     onDelete = { id -> viewModel.deleteElement(id) },
                     onDismiss = { showList = false }

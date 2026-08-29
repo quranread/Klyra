@@ -17,6 +17,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.blueprint.editor.data.BlueprintElement
+import com.blueprint.editor.data.MeasurementFrame
 import com.blueprint.editor.data.boxMetrics
 import com.blueprint.editor.data.lengthPx
 import com.blueprint.editor.ui.theme.Amber
@@ -30,8 +31,7 @@ import com.blueprint.editor.ui.theme.TextMuted
 fun ElementsListSheet(
     elements: List<BlueprintElement>,
     selectedId: String?,
-    naturalW: Int,
-    naturalH: Int,
+    measurementFrame: MeasurementFrame,
     onSelect: (String) -> Unit,
     onDelete: (String) -> Unit,
     onDismiss: () -> Unit
@@ -46,6 +46,19 @@ fun ElementsListSheet(
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
             )
+
+            // Part C: if an Active Area is set, every number in this list is
+            // measured against it (not the full image) — same rule as the
+            // Edit sheet and AI Instructions, so nothing here contradicts them.
+            val usesActiveArea = measurementFrame.originX != 0 || measurementFrame.originY != 0
+            if (usesActiveArea) {
+                Text(
+                    text = "Positions below are measured from the marked Active Area, not the full image.",
+                    color = Amber,
+                    style = MaterialTheme.typography.labelSmall,
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 2.dp)
+                )
+            }
 
             if (elements.isEmpty()) {
                 Text(
@@ -62,8 +75,7 @@ fun ElementsListSheet(
                     items(elements, key = { it.id }) { el ->
                         ElementRow(
                             element = el,
-                            naturalW = naturalW,
-                            naturalH = naturalH,
+                            measurementFrame = measurementFrame,
                             selected = el.id == selectedId,
                             onClick = { onSelect(el.id) },
                             onDelete = { onDelete(el.id) }
@@ -80,8 +92,7 @@ fun ElementsListSheet(
 @Composable
 private fun ElementRow(
     element: BlueprintElement,
-    naturalW: Int,
-    naturalH: Int,
+    measurementFrame: MeasurementFrame,
     selected: Boolean,
     onClick: () -> Unit,
     onDelete: () -> Unit
@@ -113,15 +124,19 @@ private fun ElementRow(
         Column(modifier = Modifier.weight(1f)) {
             when (element) {
                 is BlueprintElement.Line -> {
+                    val rx1 = element.x1 - measurementFrame.originX
+                    val ry1 = element.y1 - measurementFrame.originY
+                    val rx2 = element.x2 - measurementFrame.originX
+                    val ry2 = element.y2 - measurementFrame.originY
                     Text("Line", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyMedium)
                     Text(
-                        "(${element.x1},${element.y1}) -> (${element.x2},${element.y2})  len:${element.lengthPx()}px",
+                        "($rx1,$ry1) -> ($rx2,$ry2)  len:${element.lengthPx()}px",
                         color = TextMuted,
                         style = MaterialTheme.typography.labelSmall
                     )
                 }
                 is BlueprintElement.Dot -> {
-                    val box = element.boxMetrics(naturalW, naturalH)
+                    val box = element.boxMetrics(measurementFrame)
                     Text(element.type.label, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyMedium)
                     val sizeSuffix = if (element.width > 0 || element.height > 0) "  ${element.width}×${element.height}" else ""
                     val centerSuffix = if (element.isSized) "  center:${box.centerX},${box.centerY}" else ""
