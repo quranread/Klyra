@@ -32,7 +32,6 @@ import androidx.compose.ui.unit.dp
 import com.blueprint.editor.data.BlueprintViewModel
 import com.blueprint.editor.data.DrawMode
 import com.blueprint.editor.data.loadImageFromUri
-import com.blueprint.editor.export.buildAiInstructions
 import com.blueprint.editor.export.buildAnnotatedBitmap
 import com.blueprint.editor.export.buildBlueprintJson
 import com.blueprint.editor.ui.canvas.BlueprintCanvas
@@ -279,7 +278,11 @@ private fun EditorScreen(viewModel: BlueprintViewModel, onHome: () -> Unit) {
 
             if (showInstructions) {
                 AiInstructionsSheet(
-                    text = buildAiInstructions(viewModel.filename, viewModel.naturalW, viewModel.naturalH, viewModel.measurementFrame, viewModel.elements),
+                    filename = viewModel.filename,
+                    naturalW = viewModel.naturalW,
+                    naturalH = viewModel.naturalH,
+                    measurementFrame = viewModel.measurementFrame,
+                    elements = viewModel.elements,
                     onDismiss = { showInstructions = false }
                 )
             }

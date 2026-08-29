@@ -44,13 +44,22 @@ private fun regionName(x: Int, y: Int, frame: MeasurementFrame): String {
  * without physically cropping anything, every distance below is measured
  * against THAT rect instead of the full image — with an explicit sentence
  * saying so, so nothing is ambiguous.
+ *
+ * [isHtmlConversion] is Part D: HTML is usually built with relative/flow
+ * layout (%, flexbox, gap, auto margins) rather than fixed pixel positions,
+ * so converting it to or from a fixed-canvas system like Kotlin/Compose is
+ * exactly where an AI is most likely to quietly re-derive its own layout
+ * instead of trusting these numbers. When true, an extra, more forceful
+ * paragraph is appended spelling out the fixed-canvas + single-scale-factor
+ * approach explicitly for that conversion direction.
  */
 fun buildAiInstructions(
     filename: String,
     naturalW: Int,
     naturalH: Int,
     measurementFrame: MeasurementFrame,
-    elements: List<BlueprintElement>
+    elements: List<BlueprintElement>,
+    isHtmlConversion: Boolean = false
 ): String {
     if (elements.isEmpty()) return "No elements mapped yet."
 
@@ -82,6 +91,31 @@ fun buildAiInstructions(
                 "your own judgement. Y increases downward (0 is the top edge of the area described above); " +
                 "X increases rightward (0 is its left edge)."
         )
+        if (isHtmlConversion) {
+            append("\n\n")
+            append(
+                "IMPORTANT — this is an HTML-to-code (or code-to-HTML) conversion, which is exactly " +
+                    "where layout mistakes happen most: HTML is usually built with relative/flow layout " +
+                    "(percentages, flexbox, grid, gap, auto margins), and CSS's own \"px\" unit is NOT the " +
+                    "same as a raw device pixel on Android or other native platforms. Follow this exact " +
+                    "approach instead of your own layout instincts:\n" +
+                    "1. Build ONE fixed-size root container, sized exactly to the reference resolution " +
+                    "given above (${measurementFrame.width} by ${measurementFrame.height} pixels) — in " +
+                    "HTML that means an element with that literal pixel width and height, position: " +
+                    "relative, not a percentage or auto-sized container.\n" +
+                    "2. Place every element inside it using absolute positioning only (CSS " +
+                    "position: absolute / top / left in pixels, or, in Kotlin/Compose, " +
+                    "Modifier.offset { IntOffset(x, y) } in raw pixels) — do not use percentages, " +
+                    "flexbox, grid, gap, or auto margins to position anything, even if that would " +
+                    "normally be cleaner code.\n" +
+                    "3. Scale that one fixed-size root container as a single whole to fit the real " +
+                    "screen (one CSS transform: scale(), or one Compose graphicsLayer/scale applied to " +
+                    "the root only) — never scale or reposition individual child elements separately.\n" +
+                    "4. If an element contains text, its own font engine may render slightly differently " +
+                    "between HTML and Kotlin — keep the anchor point given above exactly where stated, " +
+                    "and do not resize the element based on how its text happens to wrap."
+            )
+        }
     }
 
     val blocks = elements.map { el ->
