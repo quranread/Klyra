@@ -70,7 +70,15 @@ suspend fun PointerInputScope.detectBlueprintCanvasGestures(callbacks: Blueprint
                 when (activePointers.size) {
                     1 -> {
                         val local = change.position
-                        val hit = hitTest(local, callbacks.frame(), Offset(callbacks.transform.panX, callbacks.transform.panY))
+                        // While the Line tool is active, a touch landing on an existing
+                        // dot/line endpoint must NOT just select that element — the whole
+                        // point of the hub/spoke feature (see findSnapNaturalPoint) is to
+                        // let a new line start from that exact point. Only the selected
+                        // element's quick-delete badge (a small, deliberate hit target)
+                        // still short-circuits placement here; everything else falls
+                        // through so resolveNaturalPoint()'s snapping can take over.
+                        val rawHit = hitTest(local, callbacks.frame(), Offset(callbacks.transform.panX, callbacks.transform.panY))
+                        val hit = if (callbacks.drawMode() == DrawMode.LINE && rawHit is HitResult.SelectElement) null else rawHit
                         when (hit) {
                             is HitResult.SelectElement -> callbacks.onSelect(hit.id)
                             HitResult.DeleteSelected -> callbacks.onDeleteSelected()
