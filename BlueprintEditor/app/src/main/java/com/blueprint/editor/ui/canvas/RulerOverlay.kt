@@ -139,7 +139,7 @@ fun RulerCorner(modifier: Modifier = Modifier) {
  */
 fun DrawScope.drawGridOverlay(naturalW: Int, naturalH: Int, scale: Float, panX: Float, panY: Float) {
     val step = niceStep(60f, scale) // slightly sparser than the ruler's own labels, to avoid visual noise
-    val gridColor = Color.White.copy(alpha = 0.07f)
+    val gridColor = Color.White.copy(alpha = 0.25f)
 
     var x = 0
     while (x <= naturalW) {
