@@ -60,6 +60,14 @@ android {
     }
 }
 
+android.applicationVariants.all {
+    outputs.all {
+        if (this is com.android.build.gradle.internal.api.BaseVariantOutputImpl) {
+            outputFileName = "BlueprintEditor-${name}.apk"
+        }
+    }
+}
+
 dependencies {
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.4")
