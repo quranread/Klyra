@@ -53,12 +53,28 @@ data class ElementJson(
     @SerialName("distance_from_right_edge") val distanceFromRightEdge: Int? = null,
     @SerialName("distance_from_top_edge") val distanceFromTopEdge: Int? = null,
     @SerialName("distance_from_bottom_edge") val distanceFromBottomEdge: Int? = null,
+    // Percentages (of the measurement frame's width/height) for every
+    // distance/center above — a pure ratio, so it stays correct on any
+    // device/resolution without needing density info. Requested specifically
+    // for HTML/relative-layout or any responsive target.
+    @SerialName("distance_from_left_edge_percent") val distanceFromLeftEdgePercent: Double? = null,
+    @SerialName("distance_from_right_edge_percent") val distanceFromRightEdgePercent: Double? = null,
+    @SerialName("distance_from_top_edge_percent") val distanceFromTopEdgePercent: Double? = null,
+    @SerialName("distance_from_bottom_edge_percent") val distanceFromBottomEdgePercent: Double? = null,
+    @SerialName("center_x_percent") val centerXPercent: Double? = null,
+    @SerialName("center_y_percent") val centerYPercent: Double? = null,
+    @SerialName("width_percent") val widthPercent: Double? = null,
+    @SerialName("height_percent") val heightPercent: Double? = null,
 
     // --- line fields (kind == "line") ---
     val start: PointJson? = null,
     val end: PointJson? = null,
     @SerialName("length_px") val lengthPx: Int? = null,
     @SerialName("angle_deg") val angleDeg: Int? = null,
+    @SerialName("start_x_percent") val startXPercent: Double? = null,
+    @SerialName("start_y_percent") val startYPercent: Double? = null,
+    @SerialName("end_x_percent") val endXPercent: Double? = null,
+    @SerialName("end_y_percent") val endYPercent: Double? = null,
 
     val notes: String? = null
 )

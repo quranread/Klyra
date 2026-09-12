@@ -27,6 +27,7 @@ import com.blueprint.editor.data.ElementType
 import com.blueprint.editor.data.MeasurementFrame
 import com.blueprint.editor.data.angleDeg
 import com.blueprint.editor.data.boxMetrics
+import com.blueprint.editor.data.formatPercent
 import com.blueprint.editor.data.lengthPx
 import com.blueprint.editor.ui.theme.Amber
 import com.blueprint.editor.ui.theme.Cyan
@@ -80,7 +81,7 @@ fun EditSheet(
 
             when (element) {
                 is BlueprintElement.Dot -> DotFields(element, naturalW, naturalH, measurementFrame, onUpdate)
-                is BlueprintElement.Line -> LineFields(element, onUpdate)
+                is BlueprintElement.Line -> LineFields(element, measurementFrame, onUpdate)
             }
 
             Button(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) {
@@ -176,10 +177,15 @@ private fun DotFields(
         "Edges (from marked Active Area, not full image)"
     }
     val edgesText = buildString {
-        append("Left: ${box.left}px   Right: ${box.right}px\n")
-        append("Top: ${box.top}px   Bottom: ${box.bottom}px")
+        append("Left: ${box.left}px (${formatPercent(measurementFrame.percentOfWidth(box.left))})   ")
+        append("Right: ${box.right}px (${formatPercent(measurementFrame.percentOfWidth(box.right))})\n")
+        append("Top: ${box.top}px (${formatPercent(measurementFrame.percentOfHeight(box.top))})   ")
+        append("Bottom: ${box.bottom}px (${formatPercent(measurementFrame.percentOfHeight(box.bottom))})")
         if (box.w > 0 && box.h > 0) {
-            append("\nCenter: X ${box.centerX}px, Y ${box.centerY}px")
+            append(
+                "\nCenter: X ${box.centerX}px (${formatPercent(measurementFrame.percentOfWidth(box.centerX))}), " +
+                    "Y ${box.centerY}px (${formatPercent(measurementFrame.percentOfHeight(box.centerY))})"
+            )
         }
     }
     ReadonlyBlock(edgesLabel, edgesText)
@@ -296,13 +302,18 @@ private fun SteppedNumberField(
 }
 
 @Composable
-private fun LineFields(el: BlueprintElement.Line, onUpdate: (BlueprintElement) -> Unit) {
+private fun LineFields(el: BlueprintElement.Line, measurementFrame: MeasurementFrame, onUpdate: (BlueprintElement) -> Unit) {
     var notes by remember(el.id) { mutableStateOf(el.notes) }
 
-    ReadonlyRow("Start X (original px)", el.x1.toString())
-    ReadonlyRow("Start Y (original px)", el.y1.toString())
-    ReadonlyRow("End X (original px)", el.x2.toString())
-    ReadonlyRow("End Y (original px)", el.y2.toString())
+    val rx1 = el.x1 - measurementFrame.originX
+    val ry1 = el.y1 - measurementFrame.originY
+    val rx2 = el.x2 - measurementFrame.originX
+    val ry2 = el.y2 - measurementFrame.originY
+
+    ReadonlyRow("Start X", "${rx1}px (${formatPercent(measurementFrame.percentOfWidth(rx1))})")
+    ReadonlyRow("Start Y", "${ry1}px (${formatPercent(measurementFrame.percentOfHeight(ry1))})")
+    ReadonlyRow("End X", "${rx2}px (${formatPercent(measurementFrame.percentOfWidth(rx2))})")
+    ReadonlyRow("End Y", "${ry2}px (${formatPercent(measurementFrame.percentOfHeight(ry2))})")
 
     val dx = el.x2 - el.x1
     val dy = el.y2 - el.y1

@@ -47,17 +47,27 @@ fun buildBlueprintJson(
     )
 }
 
+private fun round1(value: Double): Double = Math.round(value * 10.0) / 10.0
+
 private fun BlueprintElement.toElementJson(frame: MeasurementFrame): ElementJson =
     when (this) {
-        is BlueprintElement.Line -> ElementJson(
-            id = id,
-            kind = "line",
-            start = PointJson(x1, y1),
-            end = PointJson(x2, y2),
-            lengthPx = lengthPx(),
-            angleDeg = angleDeg(),
-            notes = notes.ifBlank { null }
-        )
+        is BlueprintElement.Line -> {
+            val rx1 = x1 - frame.originX; val ry1 = y1 - frame.originY
+            val rx2 = x2 - frame.originX; val ry2 = y2 - frame.originY
+            ElementJson(
+                id = id,
+                kind = "line",
+                start = PointJson(x1, y1),
+                end = PointJson(x2, y2),
+                lengthPx = lengthPx(),
+                angleDeg = angleDeg(),
+                startXPercent = round1(frame.percentOfWidth(rx1)),
+                startYPercent = round1(frame.percentOfHeight(ry1)),
+                endXPercent = round1(frame.percentOfWidth(rx2)),
+                endYPercent = round1(frame.percentOfHeight(ry2)),
+                notes = notes.ifBlank { null }
+            )
+        }
         is BlueprintElement.Dot -> {
             val box = boxMetrics(frame)
             ElementJson(
@@ -75,6 +85,14 @@ private fun BlueprintElement.toElementJson(frame: MeasurementFrame): ElementJson
                 distanceFromRightEdge = box.right,
                 distanceFromTopEdge = box.top,
                 distanceFromBottomEdge = box.bottom,
+                distanceFromLeftEdgePercent = round1(frame.percentOfWidth(box.left)),
+                distanceFromRightEdgePercent = round1(frame.percentOfWidth(box.right)),
+                distanceFromTopEdgePercent = round1(frame.percentOfHeight(box.top)),
+                distanceFromBottomEdgePercent = round1(frame.percentOfHeight(box.bottom)),
+                centerXPercent = if (isSized) round1(frame.percentOfWidth(box.centerX)) else null,
+                centerYPercent = if (isSized) round1(frame.percentOfHeight(box.centerY)) else null,
+                widthPercent = if (width > 0) round1(frame.percentOfWidth(width)) else null,
+                heightPercent = if (height > 0) round1(frame.percentOfHeight(height)) else null,
                 notes = notes.ifBlank { null }
             )
         }

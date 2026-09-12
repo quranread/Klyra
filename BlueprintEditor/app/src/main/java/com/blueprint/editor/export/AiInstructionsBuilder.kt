@@ -4,6 +4,7 @@ import com.blueprint.editor.data.BlueprintElement
 import com.blueprint.editor.data.MeasurementFrame
 import com.blueprint.editor.data.angleDeg
 import com.blueprint.editor.data.boxMetrics
+import com.blueprint.editor.data.formatPercent
 import com.blueprint.editor.data.lengthPx
 
 /**
@@ -123,16 +124,22 @@ fun buildAiInstructions(
             is BlueprintElement.Line -> buildString {
                 val startRegion = regionName(el.x1, el.y1, measurementFrame)
                 val endRegion = regionName(el.x2, el.y2, measurementFrame)
+                val startRelX = el.x1 - measurementFrame.originX
+                val startRelY = el.y1 - measurementFrame.originY
+                val endRelX = el.x2 - measurementFrame.originX
+                val endRelY = el.y2 - measurementFrame.originY
                 append("${el.id} is a line.\n")
                 append(
-                    "It starts at a point that is ${el.y1 - measurementFrame.originY} pixels down from the top edge and " +
-                        "${el.x1 - measurementFrame.originX} pixels in from the left edge — that start point sits in the $startRegion " +
-                        "of the image.\n"
+                    "It starts at a point that is $startRelY pixels down from the top edge " +
+                        "(${formatPercent(measurementFrame.percentOfHeight(startRelY))} of the way down) and " +
+                        "$startRelX pixels in from the left edge (${formatPercent(measurementFrame.percentOfWidth(startRelX))} " +
+                        "of the way across) — that start point sits in the $startRegion of the image.\n"
                 )
                 append(
-                    "It ends at a point that is ${el.y2 - measurementFrame.originY} pixels down from the top edge and " +
-                        "${el.x2 - measurementFrame.originX} pixels in from the left edge — that end point sits in the $endRegion " +
-                        "of the image.\n"
+                    "It ends at a point that is $endRelY pixels down from the top edge " +
+                        "(${formatPercent(measurementFrame.percentOfHeight(endRelY))} of the way down) and " +
+                        "$endRelX pixels in from the left edge (${formatPercent(measurementFrame.percentOfWidth(endRelX))} " +
+                        "of the way across) — that end point sits in the $endRegion of the image.\n"
                 )
                 append("The total length of this line is ${el.lengthPx()} pixels, at an angle of ${el.angleDeg()} degrees.")
                 if (el.notes.isNotBlank()) append("\nNote about this line: ${el.notes}")
@@ -141,21 +148,26 @@ fun buildAiInstructions(
                 val box = el.boxMetrics(measurementFrame)
                 val anchorRegion = regionName(el.x, el.y, measurementFrame)
                 append("${el.id} marks a \"${el.type.wireValue}\" element.\n")
-                append("This point is ${box.top} pixels down from the top edge of the image.\n")
-                append("This point is ${box.bottom} pixels up from the bottom edge of the image.\n")
-                append("This point is ${box.left} pixels in from the left edge of the image.\n")
-                append("This point is ${box.right} pixels in from the right edge of the image.\n")
+                append("This point is ${box.top} pixels down from the top edge of the image (${formatPercent(measurementFrame.percentOfHeight(box.top))} of the way down).\n")
+                append("This point is ${box.bottom} pixels up from the bottom edge of the image (${formatPercent(measurementFrame.percentOfHeight(box.bottom))} of the height, measured from the bottom).\n")
+                append("This point is ${box.left} pixels in from the left edge of the image (${formatPercent(measurementFrame.percentOfWidth(box.left))} of the way across).\n")
+                append("This point is ${box.right} pixels in from the right edge of the image (${formatPercent(measurementFrame.percentOfWidth(box.right))} of the width, measured from the right).\n")
                 append("That places this element in the $anchorRegion of the image.")
                 if (el.width > 0 || el.height > 0) {
+                    val widthPercent = measurementFrame.percentOfWidth(el.width)
+                    val heightPercent = measurementFrame.percentOfHeight(el.height)
                     append(
-                        "\nThis element measures ${el.width} pixels wide and ${el.height} pixels tall in total."
+                        "\nThis element measures ${el.width} pixels wide (${formatPercent(widthPercent)} of the total width) " +
+                            "and ${el.height} pixels tall (${formatPercent(heightPercent)} of the total height)."
                     )
                 }
                 if (el.isSized) {
                     val centerRegion = regionName(box.x1 + el.width / 2, box.y1 + el.height / 2, measurementFrame)
                     append(
-                        "\nThe exact center point of this element is ${box.centerY} pixels down from the " +
-                            "top edge and ${box.centerX} pixels in from the left edge (still in the $centerRegion)."
+                        "\nThe exact center point of this element is ${box.centerY} pixels down from the top edge " +
+                            "(${formatPercent(measurementFrame.percentOfHeight(box.centerY))} of the way down) and " +
+                            "${box.centerX} pixels in from the left edge (${formatPercent(measurementFrame.percentOfWidth(box.centerX))} " +
+                            "of the way across) — still in the $centerRegion."
                     )
                 }
                 if (el.notes.isNotBlank()) append("\nNote about this element: ${el.notes}")
