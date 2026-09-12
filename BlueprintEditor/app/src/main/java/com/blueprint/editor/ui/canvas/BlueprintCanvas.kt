@@ -206,7 +206,9 @@ fun BlueprintCanvas(
                             scale = transform.scale,
                             anchorLocal = liveLocal!!,
                             point = livePoint!!,
-                            containerSizePx = containerSize
+                            containerSizePx = containerSize,
+                            frame = frame,
+                            textMeasurer = textMeasurer
                         )
                     }
                 }

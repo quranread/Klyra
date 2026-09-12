@@ -19,7 +19,9 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
@@ -53,7 +55,9 @@ fun MagnifierOverlay(
     scale: Float,
     anchorLocal: Offset,
     point: NaturalPoint,
-    containerSizePx: Size
+    containerSizePx: Size,
+    frame: AnnotationFrame,
+    textMeasurer: TextMeasurer
 ) {
     val density = LocalDensity.current
     val diamPx = with(density) { MAG_DIAM.toPx() }
@@ -86,6 +90,12 @@ fun MagnifierOverlay(
                     dstOffset = IntOffset(dx.roundToInt(), dy.roundToInt()),
                     dstSize = IntSize(dstW.roundToInt().coerceAtLeast(1), dstH.roundToInt().coerceAtLeast(1))
                 )
+                // Show already-placed dots/lines at the same zoomed-in scale as the
+                // image, so the user can align the new point against them instead
+                // of just the bare pixels underneath.
+                translate(dx, dy) {
+                    drawAnnotations(frame.copy(scale = effScale), textMeasurer)
+                }
             }
             drawLine(Amber, Offset(size.width / 2f, 0f), Offset(size.width / 2f, size.height), strokeWidth = 1f)
             drawLine(Amber, Offset(0f, size.height / 2f), Offset(size.width, size.height / 2f), strokeWidth = 1f)
